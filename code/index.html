@@ -1,0 +1,286 @@
+
+<!--under construction-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#051F20">
+<meta name="description" content="MH2 PC Assistant - Voice control for your Windows PC.">
+<title>MH2 PC Assistant</title>
+<link rel="icon" href="https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#051F20;
+  --panel:#0B2B26;
+  --panel2:#163832;
+  --green:#8EB69B;
+  --light:#DAF1DE;
+  --muted:#9db9a8;
+  --line:rgba(142,182,155,.2);
+  --red:#ef6464;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:var(--bg);color:#f4fff6;font-family:Inter,Arial,sans-serif}
+body{overflow:hidden}
+button,textarea,input{font:inherit}
+button{cursor:pointer}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+button:disabled{opacity:.5;cursor:not-allowed}
+button:active{transform:scale(.97)}
+.app{height:100dvh;max-width:1000px;margin:auto;display:flex;flex-direction:column;position:relative;background:radial-gradient(ellipse at top right,#16383266,transparent 48%),var(--bg)}
+.header{height:75px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));border-bottom:1px solid var(--line);background:#051f20ed;z-index:3}
+.logo{width:45px;height:45px;object-fit:cover;border-radius:15px;border:1px solid var(--line)}
+.brand{flex:1;min-width:0}
+.brand-name{font-size:15px;font-weight:800}
+.brand-sub{display:flex;align-items:center;gap:6px;margin-top:5px;color:var(--muted);font-size:10px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.icon-btn{width:42px;height:42px;border-radius:14px;border:1px solid var(--line);background:var(--panel);color:var(--light);font-size:18px}
+.chat{flex:1;min-height:0;overflow-y:auto;padding:20px 15px;scroll-behavior:smooth}
+.welcome{max-width:520px;margin:6vh auto 28px;text-align:center}
+.hero-logo{width:82px;height:82px;object-fit:cover;border-radius:26px;border:1px solid var(--line);box-shadow:0 0 40px #8eb69b20}
+h1{font-size:clamp(25px,5vw,35px);letter-spacing:-1px;margin:20px 0 10px}
+h1 span{color:var(--green)}
+.welcome p{font-size:13px;line-height:1.8;color:var(--muted)}
+.section-title{text-align:left;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:25px 0 10px}
+.quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.quick-btn{display:flex;align-items:center;gap:10px;min-height:59px;text-align:left;padding:11px;border:1px solid var(--line);border-radius:15px;background:#0b2b26b8;color:var(--light);font-size:12px}
+.quick-btn:hover{border-color:var(--green)}
+.quick-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#8eb69b19;font-size:17px}
+.quick-btn small{display:block;color:var(--muted);font-size:10px;margin-top:4px}
+.message-row{display:flex;align-items:flex-end;gap:9px;margin:0 0 18px}
+.message-row.user{flex-direction:row-reverse}
+.avatar{width:32px;height:32px;object-fit:cover;border-radius:11px;flex-shrink:0}
+.bot-avatar{display:grid;place-items:center;background:var(--panel2);border:1px solid var(--line)}
+.message-content{max-width:min(82%,600px);min-width:0}
+.message-label{font-size:10px;color:var(--muted);margin:0 0 5px 3px}
+.user .message-label{text-align:right}
+.bubble{padding:11px 14px;border:1px solid var(--line);border-radius:5px 16px 16px 16px;background:var(--panel);font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.user .bubble{background:var(--panel2);border-radius:16px 5px 16px 16px}
+.meta{font-size:9px;color:var(--muted);margin:5px 3px}
+.user .meta{text-align:right}
+.msg-status{color:var(--green);font-size:10px;margin-top:5px}
+.composer-wrap{flex-shrink:0;padding:11px 13px;padding-bottom:max(11px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#051f20f5}
+.connection-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 2px 9px;font-size:10px;color:var(--muted)}
+.connection-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.text-btn{border:0;background:none;color:var(--green);font-size:10px}
+.composer{display:flex;align-items:flex-end;gap:8px;padding:7px;border:1px solid var(--line);border-radius:22px;background:var(--panel)}
+.composer:focus-within{border-color:#8eb69b88}
+textarea{flex:1;min-width:0;max-height:130px;min-height:42px;resize:none;border:0;outline:0;background:transparent;color:#fff;padding:10px 5px;font-size:13px;line-height:1.5}
+textarea::placeholder{color:#829e8e}
+.send-btn,.mic-btn{width:43px;height:43px;flex-shrink:0;border:0;border-radius:14px;display:grid;place-items:center;font-size:19px}
+.send-btn{background:var(--green);color:var(--bg)}
+.mic-btn{background:var(--panel2);color:var(--light);border:1px solid var(--line)}
+.mic-btn.recording{background:#7e3434;animation:pulse 1.2s infinite}
+.call-action{display:flex;justify-content:center;margin:12px 0 2px}
+.call-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;max-width:520px;padding:13px;border:1px solid #8eb69b40;border-radius:17px;background:linear-gradient(110deg,#163832,#0b2b26);color:var(--light);font-weight:700;font-size:12px}
+.call-btn .phone{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;background:var(--green);color:var(--bg);font-size:18px}
+.hint{text-align:center;font-size:9px;color:#759182;margin-top:8px}
+.toast{position:fixed;bottom:100px;left:50%;transform:translate(-50%,12px);opacity:0;pointer-events:none;background:var(--light);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:11px;font-weight:700;z-index:60;transition:.2s;max-width:90%;text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.modal-backdrop{position:fixed;inset:0;z-index:20;display:none;align-items:flex-end;justify-content:center;padding:12px;background:#000b;backdrop-filter:blur(7px)}
+.modal-backdrop.open{display:flex}
+.modal{width:100%;max-width:470px;max-height:90dvh;overflow-y:auto;border:1px solid var(--line);border-radius:24px;background:var(--panel);padding:21px}
+.modal-head{display:flex;align-items:center;justify-content:space-between}
+.modal h2{font-size:19px;margin:0}
+.modal p{font-size:12px;line-height:1.8;color:var(--muted)}
+.field-label{display:block;font-size:11px;margin:17px 0 7px;color:var(--light)}
+.field{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:white;font-size:12px}
+.field-note{font-size:10px!important}
+.primary,.secondary{width:100%;padding:12px;border-radius:12px;margin-top:10px;font-size:12px;font-weight:700}
+.primary{background:var(--green);color:var(--bg);border:0}
+.secondary{background:transparent;color:var(--light);border:1px solid var(--line)}
+.modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.modal-actions button{margin:0}
+.settings-section{border-top:1px solid var(--line);margin-top:20px;padding-top:14px}
+.settings-section h3{font-size:12px}
+.settings-section p{font-size:11px}
+
+/* Phone-style voice call screen */
+.call-screen{position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:space-between;overflow:auto;padding:25px 22px;padding-top:max(35px,env(safe-area-inset-top));padding-bottom:max(28px,env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% 28%,#235347 0%,#0b2b26 36%,#051f20 75%)}
+.call-screen.open{display:flex}
+.call-top{text-align:center;width:100%}
+.call-top .eyebrow{font-size:10px;letter-spacing:2px;color:var(--green);text-transform:uppercase}
+.call-top h2{font-size:16px;margin:10px 0 0}
+.call-profile{display:flex;flex-direction:column;align-items:center;text-align:center;margin:auto 0 20px}
+.call-avatar-wrap{position:relative;width:136px;height:136px;margin-bottom:24px}
+.call-avatar{width:136px;height:136px;object-fit:cover;border-radius:42px;border:2px solid #8eb69b70;box-shadow:0 0 0 12px #8eb69b0a,0 0 65px #8eb69b25}
+.call-avatar-wrap.active:before,.call-avatar-wrap.active:after{content:"";position:absolute;inset:-12px;border:1px solid #8eb69b55;border-radius:49px;animation:ring 2.4s infinite}
+.call-avatar-wrap.active:after{animation-delay:1.2s}
+.call-profile h1{font-size:28px;margin:0 0 8px}
+.call-profile p{font-size:12px;color:var(--muted);margin:0;min-height:18px}
+.call-timer{font-size:12px;color:var(--green);margin-top:16px;font-variant-numeric:tabular-nums}
+.voice-visual{height:60px;display:flex;align-items:center;justify-content:center;gap:5px;margin:10px 0 0}
+.voice-visual span{display:block;width:4px;height:9px;border-radius:6px;background:var(--green);opacity:.7}
+.call-screen.listening .voice-visual span{animation:wave .65s ease-in-out infinite alternate}
+.call-screen.listening .voice-visual span:nth-child(2n){animation-delay:.2s}
+.call-screen.listening .voice-visual span:nth-child(3n){animation-delay:.4s}
+.call-status{font-size:11px;color:var(--muted);min-height:17px;text-align:center}
+.call-transcript{width:100%;max-width:430px;max-height:100px;overflow-y:auto;padding:11px 13px;border:1px solid #8eb69b25;border-radius:15px;background:#051f2040;font-size:12px;line-height:1.7;text-align:center;color:var(--light);white-space:pre-wrap}
+.call-controls{display:flex;align-items:center;justify-content:center;gap:20px;margin-top:22px}
+.call-control{width:60px;height:60px;border:1px solid #8eb69b35;border-radius:22px;background:#163832;color:var(--light);font-size:21px;display:grid;place-items:center}
+.call-control small{display:block;font-size:8px;margin-top:3px}
+.call-control.muted{background:#8eb69b;color:var(--bg)}
+.end-call{width:68px;height:68px;border:0;border-radius:25px;background:#e34f58;color:white;font-size:25px;transform:rotate(135deg);box-shadow:0 8px 30px #e34f5833}
+.call-note{font-size:9px;color:#789789;text-align:center;margin-top:18px;line-height:1.6;max-width:300px}
+@keyframes ring{0%{transform:scale(.92);opacity:.7}100%{transform:scale(1.24);opacity:0}}
+@keyframes wave{from{height:7px}to{height:36px}}
+@keyframes pulse{50%{box-shadow:0 0 0 5px #be4b4b22}}
+@media(min-width:650px){
+ .app{border-left:1px solid var(--line);border-right:1px solid var(--line)}
+ .header{padding-left:23px;padding-right:23px}
+ .chat{padding:25px 26px}
+ .composer-wrap{padding-left:24px;padding-right:24px}
+ .modal-backdrop{align-items:center}
+ .call-screen{justify-content:space-around}
+}
+@media(max-width:360px){
+ .header{padding-left:9px;padding-right:9px}
+ .brand-name{font-size:13px}
+ .icon-btn{width:38px;height:38px}
+ .call-controls{gap:12px}
+ .call-avatar-wrap,.call-avatar{width:115px;height:115px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="header">
+    <img class="logo" src="https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg" alt="MH2">
+    <div class="brand">
+      <div class="brand-name">MH2 PC Assistant</div>
+      <div class="brand-sub"><span class="dot"></span><span id="headerStatus">Voice & PC Control</span></div>
+    </div>
+    <button class="icon-btn" id="newChatBtn" title="New chat" aria-label="New chat">＋</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">⚙</button>
+  </header>
+
+  <main class="chat" id="chat" aria-live="polite">
+    <section class="welcome" id="welcome">
+      <img class="hero-logo" src="https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg" alt="MH2">
+      <h1>Your PC.<br><span>Your Commands.</span></h1>
+      <p>Talk to MH2. Control your Windows computer from your phone. Start a voice session or type a command.</p>
+
+      <div class="call-action">
+        <button class="call-btn" id="startCallBtn">
+          <span class="phone">☎</span>
+          <span>Start Voice Assistant Call<br><small style="font-weight:400;color:var(--muted)">Talk naturally with your PC assistant</small></span>
+        </button>
+      </div>
+
+      <div class="section-title">Quick commands</div>
+      <div class="quick-grid">
+        <button class="quick-btn" data-command="Open Chrome"><span class="quick-icon">🌐</span><span>Open Chrome<small>Launch browser</small></span></button>
+        <button class="quick-btn" data-command="Open Notepad"><span class="quick-icon">📝</span><span>Open Notepad<small>Start writing</small></span></button>
+        <button class="quick-btn" data-command="Search WhatsApp"><span class="quick-icon">🔎</span><span>Search WhatsApp<small>Find an application</small></span></button>
+        <button class="quick-btn" data-command="Check PC status"><span class="quick-icon">💻</span><span>PC Status<small>Check computer</small></span></button>
+      </div>
+    </section>
+    <div id="messages"></div>
+  </main>
+
+  <footer class="composer-wrap">
+    <div class="connection-bar">
+      <div class="connection-text" id="connectionText">● Firebase not configured</div>
+      <button class="text-btn" id="connectionSettings">Configure Firebase ↗</button>
+    </div>
+    <form class="composer" id="composer">
+      <button class="mic-btn" type="button" id="micBtn" title="Voice input" aria-label="Voice input">🎙</button>
+      <textarea id="messageInput" rows="1" maxlength="3000" placeholder="Type a command..." aria-label="Command"></textarea>
+      <button class="send-btn" id="sendBtn" type="submit" aria-label="Send">➤</button>
+    </form>
+    <div class="hint">Enter to send · Shift + Enter for a new line</div>
+  </footer>
+</div>
+
+<!-- Phone-style call interface -->
+<section class="call-screen" id="callScreen" aria-label="Voice assistant call">
+  <div class="call-top">
+    <div class="eyebrow">MH2 • Voice Assistant</div>
+    <h2>PC Control Session</h2>
+  </div>
+
+  <div class="call-profile">
+    <div class="call-avatar-wrap" id="callAvatarWrap">
+      <img class="call-avatar" src="https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg" alt="MH2 Assistant">
+    </div>
+    <h1>MH2 Assistant</h1>
+    <p id="callSubtitle">Ready to help you</p>
+    <div class="call-timer" id="callTimer">00:00</div>
+    <div class="voice-visual" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+    </div>
+    <div class="call-status" id="callStatus">Tap the microphone to start talking</div>
+  </div>
+
+  <div style="width:100%;max-width:430px">
+    <div class="call-transcript" id="callTranscript">Your voice commands will appear here.</div>
+    <div class="call-controls">
+      <button class="call-control" id="callMuteBtn" aria-label="Mute voice">🎙<small id="muteLabel">Mute</small></button>
+      <button class="end-call" id="endCallBtn" aria-label="End call">☎</button>
+      <button class="call-control" id="callListenBtn" aria-label="Start listening">🎤<small>Speak</small></button>
+    </div>
+    <div class="call-note">This is a voice-control session, not a telephone call. Your Windows PC agent must be running to execute commands.</div>
+  </div>
+</section>
+
+<div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="settingsTitle">Settings</h2>
+      <button class="icon-btn" id="closeSettings" aria-label="Close">✕</button>
+    </div>
+    <p>Connect to your Firebase Realtime Database. The Windows Python agent reads commands from the same database.</p>
+
+    <form id="settingsForm">
+      <label class="field-label" for="databaseUrl">Firebase Realtime Database URL</label>
+      <input class="field" id="databaseUrl" type="url" placeholder="https://your-project-default-rtdb.firebaseio.com" required>
+      <p class="field-note">Use the actual Realtime Database URL from Firebase Console.</p>
+
+      <label class="field-label" for="authToken">Firebase ID token (optional)</label>
+      <input class="field" id="authToken" type="password" autocomplete="off" placeholder="ID token if required by your rules">
+      <p class="field-note">ID tokens expire. Avoid storing long-lived secrets in a public website.</p>
+
+      <button class="primary" type="submit">Save Settings</button>
+      <button class="secondary" type="button" id="testConnection">Test Database Connection</button>
+    </form>
+
+    <div class="settings-section">
+      <h3>Chat controls</h3>
+      <div class="modal-actions">
+        <button class="secondary" type="button" id="exportChat">Export Chat</button>
+        <button class="secondary" type="button" id="clearChat">Clear Chat</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Database protocol</h3>
+      <p>Commands are created under <code>commands</code>. Your PC agent should update each command's <code>status</code> and <code>response</code>.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const ICON = "https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg";
+
+const STORAGE = {
+  url: "mh2_pc_assistant_database_url",
+  token: "mh2_pc_assistant_auth_token",
+  messages: "mh2_pc_assistant_chat_history"
+};
+
+//* under construction*//
+</script>
+</body>
+</html>
