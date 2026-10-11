@@ -26,6 +26,12 @@ The project uses Firebase to connect the phone and PC, with a simple web app for
 
 *These features are planned; availability depends on development progress.*
 
+---
+## System Architecture
+
+![MH2 PC Assistant](assets/mh2pcassistant.jpg)
+
+---
 ##  How It Works
 
 ```text
