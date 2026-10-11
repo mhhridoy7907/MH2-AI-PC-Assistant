@@ -10,19 +10,19 @@ MH2 PC Assistant is a personal remote PC control project designed to make comput
 
 The project uses Firebase to connect the phone and PC, with a simple web app for sending commands and receiving responses.
 
-## ✨ Planned Features
+##  Planned Features
 
-- 📱 **Phone Control** — Control your PC from a mobile-friendly web app.
-- 🎙️ **Voice Commands** — Speak commands using your phone.
-- ⌨️ **Text Commands** — Type commands and send them to your PC.
-- 🚀 **App Launcher** — Open apps such as Chrome, Notepad, and VS Code.
-- 🔎 **Web Search** — Search the web using simple commands.
-- 💬 **Smart Replies** — Receive command results on your phone.
-- ⌨️ **Keyboard Control** — Type text and use supported keyboard shortcuts.
-- 🖱️ **Mouse Control** — Add remote mouse actions.
-- 🟢 **PC Status** — Check whether your PC agent is online.
-- 📂 **File Transfer** — Planned support for transferring files.
-- 🖥️ **Remote Screen** — Planned screen viewing and remote interaction.
+-  **Phone Control** — Control your PC from a mobile-friendly web app.
+-  **Voice Commands** — Speak commands using your phone.
+-  **Text Commands** — Type commands and send them to your PC.
+-  **App Launcher** — Open apps such as Chrome, Notepad, and VS Code.
+-  **Web Search** — Search the web using simple commands.
+-  **Smart Replies** — Receive command results on your phone.
+-  **Keyboard Control** — Type text and use supported keyboard shortcuts.
+-  **Mouse Control** — Add remote mouse actions.
+-  **PC Status** — Check whether your PC agent is online.
+-  **File Transfer** — Planned support for transferring files.
+-  **Remote Screen** — Planned screen viewing and remote interaction.
 
 *These features are planned; availability depends on development progress.*
 
