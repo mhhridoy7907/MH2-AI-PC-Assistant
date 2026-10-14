@@ -1,0 +1,155 @@
+
+<!--under construction-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#051F20">
+<meta name="description" content="MH2 PC Assistant - Voice control for your Windows PC.">
+<title>MH2 PC Assistant</title>
+<link rel="icon" href="https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+<link rel="stylesheet" herf="style.css">
+  
+</head>
+<body>
+
+<div class="app">
+  <header class="header">
+    <img class="logo" src="https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg" alt="MH2">
+    <div class="brand">
+      <div class="brand-name">MH2 PC Assistant</div>
+      <div class="brand-sub"><span class="dot"></span><span id="headerStatus">Voice & PC Control</span></div>
+    </div>
+    <button class="icon-btn" id="newChatBtn" title="New chat" aria-label="New chat">＋</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">⚙</button>
+  </header>
+
+  <main class="chat" id="chat" aria-live="polite">
+    <section class="welcome" id="welcome">
+      <img class="hero-logo" src="https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg" alt="MH2">
+      <h1>Your PC.<br><span>Your Commands.</span></h1>
+      <p>Talk to MH2. Control your Windows computer from your phone. Start a voice session or type a command.</p>
+
+      <div class="call-action">
+        <button class="call-btn" id="startCallBtn">
+          <span class="phone">☎</span>
+          <span>Start Voice Assistant Call<br><small style="font-weight:400;color:var(--muted)">Talk naturally with your PC assistant</small></span>
+        </button>
+      </div>
+
+      <div class="section-title">Quick commands</div>
+      <div class="quick-grid">
+        <button class="quick-btn" data-command="Open Chrome"><span class="quick-icon">🌐</span><span>Open Chrome<small>Launch browser</small></span></button>
+        <button class="quick-btn" data-command="Open Notepad"><span class="quick-icon">📝</span><span>Open Notepad<small>Start writing</small></span></button>
+        <button class="quick-btn" data-command="Search WhatsApp"><span class="quick-icon">🔎</span><span>Search WhatsApp<small>Find an application</small></span></button>
+        <button class="quick-btn" data-command="Check PC status"><span class="quick-icon">💻</span><span>PC Status<small>Check computer</small></span></button>
+      </div>
+    </section>
+    <div id="messages"></div>
+  </main>
+
+  <footer class="composer-wrap">
+    <div class="connection-bar">
+      <div class="connection-text" id="connectionText">● Firebase not configured</div>
+      <button class="text-btn" id="connectionSettings">Configure Firebase ↗</button>
+    </div>
+    <form class="composer" id="composer">
+      <button class="mic-btn" type="button" id="micBtn" title="Voice input" aria-label="Voice input">🎙</button>
+      <textarea id="messageInput" rows="1" maxlength="3000" placeholder="Type a command..." aria-label="Command"></textarea>
+      <button class="send-btn" id="sendBtn" type="submit" aria-label="Send">➤</button>
+    </form>
+    <div class="hint">Enter to send · Shift + Enter for a new line</div>
+  </footer>
+</div>
+
+<!-- Phone-style call interface -->
+<section class="call-screen" id="callScreen" aria-label="Voice assistant call">
+  <div class="call-top">
+    <div class="eyebrow">MH2 • Voice Assistant</div>
+    <h2>PC Control Session</h2>
+  </div>
+
+  <div class="call-profile">
+    <div class="call-avatar-wrap" id="callAvatarWrap">
+      <img class="call-avatar" src="https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg" alt="MH2 Assistant">
+    </div>
+    <h1>MH2 Assistant</h1>
+    <p id="callSubtitle">Ready to help you</p>
+    <div class="call-timer" id="callTimer">00:00</div>
+    <div class="voice-visual" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span>
+    </div>
+    <div class="call-status" id="callStatus">Tap the microphone to start talking</div>
+  </div>
+
+  <div style="width:100%;max-width:430px">
+    <div class="call-transcript" id="callTranscript">Your voice commands will appear here.</div>
+    <div class="call-controls">
+      <button class="call-control" id="callMuteBtn" aria-label="Mute voice">🎙<small id="muteLabel">Mute</small></button>
+      <button class="end-call" id="endCallBtn" aria-label="End call">☎</button>
+      <button class="call-control" id="callListenBtn" aria-label="Start listening">🎤<small>Speak</small></button>
+    </div>
+    <div class="call-note">This is a voice-control session, not a telephone call. Your Windows PC agent must be running to execute commands.</div>
+  </div>
+</section>
+
+<div class="modal-backdrop" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="settingsTitle">Settings</h2>
+      <button class="icon-btn" id="closeSettings" aria-label="Close">✕</button>
+    </div>
+    <p>Connect to your Firebase Realtime Database. The Windows Python agent reads commands from the same database.</p>
+
+    <form id="settingsForm">
+      <label class="field-label" for="databaseUrl">Firebase Realtime Database URL</label>
+      <input class="field" id="databaseUrl" type="url" placeholder="https://your-project-default-rtdb.firebaseio.com" required>
+      <p class="field-note">Use the actual Realtime Database URL from Firebase Console.</p>
+
+      <label class="field-label" for="authToken">Firebase ID token (optional)</label>
+      <input class="field" id="authToken" type="password" autocomplete="off" placeholder="ID token if required by your rules">
+      <p class="field-note">ID tokens expire. Avoid storing long-lived secrets in a public website.</p>
+
+      <button class="primary" type="submit">Save Settings</button>
+      <button class="secondary" type="button" id="testConnection">Test Database Connection</button>
+    </form>
+
+    <div class="settings-section">
+      <h3>Chat controls</h3>
+      <div class="modal-actions">
+        <button class="secondary" type="button" id="exportChat">Export Chat</button>
+        <button class="secondary" type="button" id="clearChat">Clear Chat</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Database protocol</h3>
+      <p>Commands are created under <code>commands</code>. Your PC agent should update each command's <code>status</code> and <code>response</code>.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+const ICON = "https://i.pinimg.com/736x/78/8f/4a/788f4aac6662168309239d653f205979.jpg";
+
+const STORAGE = {
+  url: "mh2_pc_assistant_database_url",
+  token: "mh2_pc_assistant_auth_token",
+  messages: "mh2_pc_assistant_chat_history"
+};
+
+//* under construction*//
+</script>
+</body>
+</html>
