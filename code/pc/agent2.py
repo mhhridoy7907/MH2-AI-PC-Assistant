@@ -31,7 +31,7 @@ except Exception:
 APP_NAME = "MH2 PC Assistant"
 
 DATABASE_URL = (
-    "https://mh2pcass-default-rtdb.asia-southeast1.firebasedatabase.app"
+    "https://mh2pcas***********************.firebasedatabase.app"
 )
 
 AUTH_TOKEN = os.environ.get("MH2_AUTH_TOKEN", "").strip()
