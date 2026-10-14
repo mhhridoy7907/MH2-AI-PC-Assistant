@@ -81,12 +81,12 @@ The phone sends a command through the web app. Firebase passes the request to th
 
 - [x] Project idea and name
 - [x] Initial system design
-- [ ] Mobile-friendly web interface
-- [ ] Firebase connection
-- [ ] Python PC agent
-- [ ] Voice and text commands
-- [ ] Application control
-- [ ] Command replies and PC status
+- [x] Mobile-friendly web interface
+- [x] Firebase connection
+- [x] Python PC agent
+- [x] Voice and text commands
+- [x] Application control
+- [x] Command replies and PC status
 - [ ] Security testing
 - [ ] Optional file transfer and remote screen
 
