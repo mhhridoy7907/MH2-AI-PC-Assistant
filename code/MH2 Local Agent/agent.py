@@ -4893,13 +4893,3 @@ if __name__ == "__main__":
             pass
         pygame.quit()
         sys.exit(1)
-        
-
-# DEVELOPMENT IN PROGRESS
-# This project is currently under active development.
-# New features, improvements, bug fixes, and performance optimizations are ongoing.
-# The code is not yet considered a final stable release.
-
-
-
-
