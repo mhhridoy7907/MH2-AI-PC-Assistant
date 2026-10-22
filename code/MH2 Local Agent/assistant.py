@@ -1,3 +1,9 @@
+# DEVELOPMENT IN PROGRESS
+# This project is currently under active development.
+# New features, improvements, bug fixes, and performance optimizations are ongoing.
+# The code is not yet considered a final stable release.
+
+
 import os
 
 if os.name != "nt":  raise SystemExit("MH2 PC Assistant agent runs on Windows only.")
