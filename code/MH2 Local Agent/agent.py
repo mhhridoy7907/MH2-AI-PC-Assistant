@@ -1,601 +1,350 @@
+# DEVELOPMENT IN PROGRESS
+
+import os
+
+if os.name != "nt":
+    raise SystemExit("MH2 PC Assistant agent runs on Windows only.")
 
 import ctypes
-import os
+import logging
+import math
+import queue
+import random
 import re
-import shutil
 import subprocess
-import webbrowser
-from pathlib import Path
+import sys
+import threading
+import time
+import traceback
+import uuid
+import winreg
+from collections import OrderedDict, deque
+from ctypes import wintypes
+from datetime import datetime
+from urllib.parse import quote
 
 import pyautogui
+import pygame
 import pyperclip
-import speech_recognition as sr
+
+uiautomation = None
 
 
-# =========================================================
-# MH2 PC ASSISTANT — ONLINE VOICE
-# Windows | Bengali + English | Allowlisted commands only
-# =========================================================
+APP_NAME = "MH2 PC Assistant"
+
+CONFIRMATION_TIMEOUT = 60
+DUPLICATE_WINDOW = 2.0
+MAX_COMMAND_LENGTH = 2000
+MAX_MOUSE_STEP = 2000
+MAX_SCROLL_AMOUNT = 50
+MOUSE_EDGE_MARGIN = 5
+MOUSE_MOVE_DURATION = 0.25
+MOUSE_STEP_PIXELS = 25
+WINDOW_WAIT_TIMEOUT = 15
+WHATSAPP_LOAD_TIMEOUT = 40
+WHATSAPP_SEARCH_DELAY = 1.8
+MAX_CHROME_TABS_SCAN = 30
+WHATSAPP_REQUIRE_VERIFICATION = True
+MAX_SCAN_WORDS = 20
+
+VOICE_ENABLED = True
+VOICE_LANGUAGES = ("en-US", "bn-BD")
+VOICE_GOOD_CONFIDENCE = 0.80
+VOICE_PHRASE_LIMIT = 15
+VOICE_PAUSE_THRESHOLD = 0.8
+VOICE_QUEUE_SIZE = 4
+VOICE_RETRY_SECONDS = 8
+VOICE_MAX_RETRY_SECONDS = 30
+VOICE_AMBIENT_SECONDS = 1.0
+VOICE_MAX_CANDIDATES = 6
+
+SCREENSHOT_DIR = os.path.join(
+    os.path.expanduser("~"), "Pictures", "MH2 Screenshots"
+)
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.15
 
-COMMANDS = {
-    # Applications
-    "open notepad": ("app", "notepad"),
-    "start notepad": ("app", "notepad"),
-    "নোটপ্যাড খোলো": ("app", "notepad"),
-    "নোটপ্যাড চালু করো": ("app", "notepad"),
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | mh2_agent | %(message)s"
+)
 
-    "open calculator": ("app", "calc"),
-    "ক্যালকুলেটর খোলো": ("app", "calc"),
+log = logging.getLogger("mh2_agent")
 
-    "open word": ("app", "winword"),
-    "open ms word": ("app", "winword"),
-    "ms word": ("app", "winword"),
-    "microsoft word": ("app", "winword"),
-    "এমএস ওয়ার্ড": ("app", "winword"),
-    "ওয়ার্ড খোলো": ("app", "winword"),
+user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
+shell32 = ctypes.windll.shell32
+ole32 = ctypes.windll.ole32
+dwmapi = ctypes.windll.dwmapi
 
-    "open excel": ("app", "excel"),
-    "open ms excel": ("app", "excel"),
-    "ms excel": ("app", "excel"),
-    "open xl": ("app", "excel"),
-    "open x l": ("app", "excel"),
-    "ওপেন এক্সেল": ("app", "excel"),
-    "এক্সেল খোলো": ("app", "excel"),
-    "ওপেন এক্সএল": ("app", "excel"),
-    "এক্সেল চালু করো": ("app", "excel"),
+try:
+    user32.SetProcessDPIAware()
+except (AttributeError, OSError):
+    pass
 
-    # Websites
-    "open chrome": ("chrome_site", "https://www.google.com/"),
-    "ক্রোম খোলো": ("chrome_site", "https://www.google.com/"),
+WNDENUMPROC = ctypes.WINFUNCTYPE(
+    wintypes.BOOL, wintypes.HWND, wintypes.LPARAM
+)
 
-    "open youtube": ("site", "https://www.youtube.com/"),
-    "ইউটিউব খোলো": ("site", "https://www.youtube.com/"),
+OWN_WINDOWS = set()
 
-    "open google": ("site", "https://www.google.com/"),
-    "গুগল খোলো": ("site", "https://www.google.com/"),
 
-    "open gmail": ("site", "https://mail.google.com/"),
-    "জিমেইল খোলো": ("site", "https://mail.google.com/"),
+class GUID(ctypes.Structure):
+    _fields_ = [
+        ("Data1", wintypes.DWORD),
+        ("Data2", wintypes.WORD),
+        ("Data3", wintypes.WORD),
+        ("Data4", ctypes.c_ubyte * 8),
+    ]
 
-    "open whatsapp": ("chrome_site", "https://web.whatsapp.com/"),
-    "open whatsapp web": ("chrome_site", "https://web.whatsapp.com/"),
-    "whatsapp on chrome": ("chrome_site", "https://web.whatsapp.com/"),
-    "হোয়াটসঅ্যাপ খোলো": ("chrome_site", "https://web.whatsapp.com/"),
-    "হোয়াটসঅ্যাপ চালু করো": ("chrome_site", "https://web.whatsapp.com/"),
 
-    # Close applications/windows
-    "close notepad": ("close_app", "notepad"),
-    "ক্লোজ নোটপ্যাড": ("close_app", "notepad"),
-    "নোটপ্যাড বন্ধ করো": ("close_app", "notepad"),
+user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
+user32.EnumWindows.restype = wintypes.BOOL
+user32.IsWindow.argtypes = [wintypes.HWND]
+user32.IsWindow.restype = wintypes.BOOL
+user32.IsWindowVisible.argtypes = [wintypes.HWND]
+user32.IsWindowVisible.restype = wintypes.BOOL
+user32.IsIconic.argtypes = [wintypes.HWND]
+user32.IsIconic.restype = wintypes.BOOL
+user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+user32.GetWindowTextLengthW.restype = ctypes.c_int
+user32.GetWindowTextW.argtypes = [
+    wintypes.HWND, wintypes.LPWSTR, ctypes.c_int
+]
+user32.GetWindowTextW.restype = ctypes.c_int
+user32.GetClassNameW.argtypes = [
+    wintypes.HWND, wintypes.LPWSTR, ctypes.c_int
+]
+user32.GetClassNameW.restype = ctypes.c_int
+user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+user32.GetWindowRect.restype = wintypes.BOOL
+user32.GetForegroundWindow.restype = wintypes.HWND
+user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+user32.SetForegroundWindow.restype = wintypes.BOOL
+user32.BringWindowToTop.argtypes = [wintypes.HWND]
+user32.BringWindowToTop.restype = wintypes.BOOL
+user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+user32.ShowWindow.restype = wintypes.BOOL
+user32.PostMessageW.argtypes = [
+    wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM
+]
+user32.PostMessageW.restype = wintypes.BOOL
+user32.GetWindowThreadProcessId.argtypes = [
+    wintypes.HWND, ctypes.POINTER(wintypes.DWORD)
+]
+user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+user32.AttachThreadInput.argtypes = [
+    wintypes.DWORD, wintypes.DWORD, wintypes.BOOL
+]
+user32.AttachThreadInput.restype = wintypes.BOOL
+user32.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+user32.GetCursorPos.restype = wintypes.BOOL
+user32.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
+user32.SetCursorPos.restype = wintypes.BOOL
+user32.GetSystemMetrics.argtypes = [ctypes.c_int]
+user32.GetSystemMetrics.restype = ctypes.c_int
+kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+kernel32.GetConsoleWindow.restype = wintypes.HWND
+kernel32.GetLogicalDrives.restype = wintypes.DWORD
+kernel32.SetErrorMode.argtypes = [wintypes.UINT]
+kernel32.SetErrorMode.restype = wintypes.UINT
+shell32.SHEmptyRecycleBinW.argtypes = [
+    wintypes.HWND, wintypes.LPCWSTR, wintypes.DWORD
+]
+shell32.SHEmptyRecycleBinW.restype = ctypes.c_long
+shell32.SHGetKnownFolderPath.argtypes = [
+    ctypes.POINTER(GUID),
+    wintypes.DWORD,
+    wintypes.HANDLE,
+    ctypes.POINTER(ctypes.c_void_p),
+]
+shell32.SHGetKnownFolderPath.restype = ctypes.c_long
+ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+ole32.CoTaskMemFree.restype = None
+dwmapi.DwmGetWindowAttribute.argtypes = [
+    wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD
+]
 
-    "close this window": ("hotkey", ("alt", "f4")),
-    "close window": ("hotkey", ("alt", "f4")),
-    "এই উইন্ডো বন্ধ করো": ("hotkey", ("alt", "f4")),
-    "উইন্ডো বন্ধ করো": ("hotkey", ("alt", "f4")),
+kernel32.SetErrorMode(0x0001)
 
-    # Show desktop rather than forcibly closing every app.
-    "close all windows": ("show_desktop", ""),
-    "show desktop": ("show_desktop", ""),
-    "সব উইন্ডো বন্ধ করো": ("show_desktop", ""),
-    "ডেস্কটপ দেখাও": ("show_desktop", ""),
+SW_MAXIMIZE = 3
+SW_MINIMIZE = 6
+SW_RESTORE = 9
+WM_CLOSE = 0x0010
+DWMWA_CLOAKED = 14
+SHERB_NOCONFIRMATION = 0x1
+SHERB_NOPROGRESSUI = 0x2
+SHERB_NOSOUND = 0x4
 
-    "minimize window": ("hotkey", ("win", "down")),
-    "মিনিমাইজ করো": ("hotkey", ("win", "down")),
-    "maximize window": ("hotkey", ("win", "up")),
-    "ম্যাক্সিমাইজ করো": ("hotkey", ("win", "up")),
-
-    # Switch apps/windows
-    "switch window": ("hotkey", ("alt", "tab")),
-    "switch app": ("hotkey", ("alt", "tab")),
-    "next window": ("hotkey", ("alt", "tab")),
-    "অ্যাপ চেঞ্জ করো": ("hotkey", ("alt", "tab")),
-    "উইন্ডো চেঞ্জ করো": ("hotkey", ("alt", "tab")),
-
-    # Browser tabs
-    "new tab": ("hotkey", ("ctrl", "t")),
-    "open new tab": ("hotkey", ("ctrl", "t")),
-    "নতুন ট্যাব খোলো": ("hotkey", ("ctrl", "t")),
-
-    "close tab": ("hotkey", ("ctrl", "w")),
-    "ট্যাব বন্ধ করো": ("hotkey", ("ctrl", "w")),
-
-    "next tab": ("hotkey", ("ctrl", "tab")),
-    "পরের ট্যাবে যাও": ("hotkey", ("ctrl", "tab")),
-
-    "previous tab": ("hotkey", ("ctrl", "shift", "tab")),
-    "আগের ট্যাবে যাও": ("hotkey", ("ctrl", "shift", "tab")),
-
-    # Mouse movement: move in 100-pixel increments
-    "move mouse left": ("mouse", (-100, 0)),
-    "move mouse right": ("mouse", (100, 0)),
-    "move mouse up": ("mouse", (0, -100)),
-    "move mouse down": ("mouse", (0, 100)),
-    "মাউস বামে নাও": ("mouse", (-100, 0)),
-    "মাউস ডানে নাও": ("mouse", (100, 0)),
-    "মাউস উপরে নাও": ("mouse", (0, -100)),
-    "মাউস নিচে নাও": ("mouse", (0, 100)),
-
-    "mouse click": ("click", "left"),
-    "left click": ("click", "left"),
-    "মাউস ক্লিক": ("click", "left"),
-    "right click": ("click", "right"),
-    "রাইট ক্লিক": ("click", "right"),
-
-    "scroll up": ("scroll", 4),
-    "scroll down": ("scroll", -4),
-    "উপরে স্ক্রল করো": ("scroll", 4),
-    "নিচে স্ক্রল করো": ("scroll", -4),
-
-    # WhatsApp message workflow
-    "dictate message": ("dictate", ""),
-    "type message": ("dictate", ""),
-    "write message": ("dictate", ""),
-    "মেসেজ লেখো": ("dictate", ""),
-    "মেসেজ টাইপ করো": ("dictate", ""),
-
-    "send message": ("send", ""),
-    "send whatsapp message": ("send", ""),
-    "মেসেজ পাঠাও": ("send", ""),
-    "মেসেজ সেন্ড করো": ("send", ""),
-
-    # Power commands
-    "shut down pc": ("power", "shutdown"),
-    "shutdown pc": ("power", "shutdown"),
-    "কম্পিউটার বন্ধ করো": ("power", "shutdown"),
-    "পিসি বন্ধ করো": ("power", "shutdown"),
-
-    "restart pc": ("power", "restart"),
-    "restart computer": ("power", "restart"),
-    "কম্পিউটার রিস্টার্ট করো": ("power", "restart"),
-    "পিসি রিস্টার্ট করো": ("power", "restart"),
-
-    "sleep pc": ("power", "sleep"),
-    "put pc to sleep": ("power", "sleep"),
-    "কম্পিউটার স্লিপ করো": ("power", "sleep"),
-    "পিসি স্লিপ করো": ("power", "sleep"),
-
-    "cancel shutdown": ("cancel_shutdown", ""),
-    "shutdown cancel করো": ("cancel_shutdown", ""),
-
-    # Voice control
-    "stop listening": ("stop", ""),
-    "ভয়েস বন্ধ করো": ("stop", ""),
-    "শোনা বন্ধ করো": ("stop", ""),
+SHELL_CLASSES = {
+    "Progman",
+    "WorkerW",
+    "Shell_TrayWnd",
+    "Shell_SecondaryTrayWnd",
 }
 
-
-def normalize(text):
-    text = text.lower().strip()
-    text = re.sub(r"[.!?,;:'\"।]+", "", text)
-    return re.sub(r"\s+", " ", text)
-
-
-def find_chrome():
-    """Find common Chrome installation paths on Windows."""
-    found = shutil.which("chrome.exe")
-    if found:
-        return found
-
-    locations = [
-        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
-        / "Google/Chrome/Application/chrome.exe",
-
-        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
-        / "Google/Chrome/Application/chrome.exe",
-
-        Path(os.environ.get("LOCALAPPDATA", ""))
-        / "Google/Chrome/Application/chrome.exe",
-    ]
-
-    for path in locations:
-        if path.is_file():
-            return str(path)
-
-    return None
-
-
-def find_office_app(app_name):
-    """Find Word/Excel in common Microsoft Office installation folders."""
-    found = shutil.which(app_name + ".exe")
-    if found:
-        return found
-
-    folders = [
-        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
-        / "Microsoft Office/root/Office16",
-
-        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
-        / "Microsoft Office/root/Office16",
-
-        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
-        / "Microsoft Office/Office16",
-
-        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
-        / "Microsoft Office/Office16",
-    ]
-
-    for folder in folders:
-        candidate = folder / (app_name + ".exe")
-        if candidate.is_file():
-            return str(candidate)
-
-    return None
-
-
-def confirm_action(prompt, expected):
-    """Require explicit keyboard confirmation for sensitive actions."""
-    print("\nCONFIRMATION REQUIRED")
-    print(prompt)
-    answer = input(f"Type {expected} to confirm: ").strip()
-    return answer == expected
-
-
-def execute_action(action):
-    kind, value = action
-
-    try:
-        if kind == "stop":
-            print("Voice mode stopped.")
-            return True
-
-        if kind == "app":
-            if value in ("winword", "excel"):
-                executable = find_office_app(value)
-                if not executable:
-                    print(
-                        f"Could not find {value}.exe. "
-                        "Check whether Microsoft Office is installed."
-                    )
-                    return False
-            else:
-                executable = shutil.which(value + ".exe") or (value + ".exe")
-
-            subprocess.Popen([executable], shell=False)
-            print(f"Application launch requested: {value}")
-            return False
-
-        if kind == "site":
-            webbrowser.open(value)
-            print("Website opened in the default browser.")
-            return False
-
-        if kind == "chrome_site":
-            chrome = find_chrome()
-            if chrome:
-                subprocess.Popen([chrome, value], shell=False)
-                print("Opened in Chrome.")
-            else:
-                webbrowser.open(value)
-                print("Chrome not found; opened in the default browser.")
-            return False
-
-        if kind == "close_app":
-            if value == "notepad":
-                result = subprocess.run(
-                    ["taskkill", "/IM", "notepad.exe", "/T"],
-                    shell=False,
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0:
-                    print("Notepad close command sent.")
-                else:
-                    print("Notepad may not be running.")
-            return False
-
-        if kind == "hotkey":
-            pyautogui.hotkey(*value)
-            print("Keyboard shortcut executed.")
-            return False
-
-        if kind == "show_desktop":
-            pyautogui.hotkey("win", "d")
-            print("Desktop shown. Open applications remain running.")
-            return False
-
-        if kind == "mouse":
-            dx, dy = value
-            pyautogui.moveRel(dx, dy, duration=0.2)
-            print("Mouse moved.")
-            return False
-
-        if kind == "click":
-            pyautogui.click(button=value)
-            print(f"{value.capitalize()} click executed.")
-            return False
-
-        if kind == "scroll":
-            pyautogui.scroll(value)
-            print("Scrolled.")
-            return False
-
-        if kind == "dictate":
-            print(
-                "Dictation mode is available in /voice mode. "
-                "Say your message in the next turn."
-            )
-            return False
-
-        if kind == "send":
-            print(
-                "Make sure the correct WhatsApp chat and message box "
-                "are active before sending."
-            )
-            if confirm_action(
-                "This will press Enter in the currently focused window.",
-                "SEND",
-            ):
-                pyautogui.press("enter")
-                print("Enter pressed.")
-            else:
-                print("Sending cancelled.")
-            return False
-
-        if kind == "power":
-            prompts = {
-                "shutdown": (
-                    "The PC will shut down after a 30-second countdown.",
-                    ["shutdown", "/s", "/t", "30"],
-                ),
-                "restart": (
-                    "The PC will restart after a 30-second countdown.",
-                    ["shutdown", "/r", "/t", "30"],
-                ),
-                "sleep": (
-                    "The PC will enter Windows sleep/suspend mode.",
-                    None,
-                ),
-            }
-
-            prompt, command = prompts[value]
-            if not confirm_action(prompt, "YES"):
-                print("Power action cancelled.")
-                return False
-
-            if value == "sleep":
-                ctypes.windll.powrprof.SetSuspendState(False, True, False)
-            else:
-                subprocess.run(command, shell=False, check=False)
-                print("Power command sent. Use 'cancel shutdown' to abort a countdown.")
-            return False
-
-        if kind == "cancel_shutdown":
-            subprocess.run(
-                ["shutdown", "/a"],
-                shell=False,
-                capture_output=True,
-                text=True,
-            )
-            print("Shutdown/restart countdown cancellation requested.")
-            return False
-
-    except (OSError, RuntimeError, pyautogui.FailSafeException) as error:
-        print("Action failed:", error)
-
-    return False
-
-
-def execute(command):
-    action = COMMANDS.get(normalize(command))
-
-    if action is None:
-        print("Command not matched exactly. No action taken.")
-        return False
-
-    return execute_action(action)
-
-
-def listen_once(recognizer, microphone):
-    with microphone as source:
-        print("\nListening...")
-        return recognizer.listen(
-            source,
-            timeout=6,
-            phrase_time_limit=10,
-        )
-
-
-def recognize_text(recognizer, audio):
-    """Try Bengali first, then English."""
-    for language in ("bn-BD", "en-US"):
-        try:
-            text = recognizer.recognize_google(audio, language=language)
-            print(f"Heard [{language}]: {text}")
-            return text
-        except sr.UnknownValueError:
-            continue
-        except sr.RequestError:
-            raise
-
-    return None
-
-
-def paste_dictated_message(recognizer, microphone):
-    print("Dictation: say the message you want typed.")
-    print("The message will be typed but NOT sent automatically.")
-
-    try:
-        audio = listen_once(recognizer, microphone)
-        text = recognize_text(recognizer, audio)
-
-        if not text:
-            print("Speech not understood. Nothing typed.")
-            return
-
-        pyperclip.copy(text)
-        pyautogui.hotkey("ctrl", "v")
-        print("Message typed into the focused text field.")
-        print("Review it, then say 'send message' if you want to send it.")
-
-    except sr.WaitTimeoutError:
-        print("No speech detected. Dictation cancelled.")
-    except sr.RequestError as error:
-        print("Online recognition error:", error)
-    except (OSError, RuntimeError, pyautogui.FailSafeException) as error:
-        print("Dictation failed:", error)
-
-
-def voice_mode():
-    recognizer = sr.Recognizer()
-    recognizer.pause_threshold = 0.7
-
-    try:
-        microphone = sr.Microphone()
-    except Exception as error:
-        print("Microphone error:", error)
-        return
-
-    print("\nMH2 Online Voice Mode — Bengali + English")
-    print("Internet is required for speech recognition.")
-    print("Say 'stop listening' to exit.")
-    print("For WhatsApp: open a chat, focus its message box,")
-    print("say 'dictate message', speak the text, review it,")
-    print("then say 'send message' to request sending.")
-    print("Power actions require typing YES in the terminal.")
-
-    with microphone as source:
-        print("Adjusting microphone...")
-        recognizer.adjust_for_ambient_noise(source, duration=1)
-
-    while True:
-        try:
-            audio = listen_once(recognizer, microphone)
-
-            # A separate utterance is used for message dictation.
-            # It is pasted only; it is never automatically sent.
-            if dictation_requested(recognizer, audio):
-                paste_dictated_message(recognizer, microphone)
-                continue
-
-            # Try both recognizers on the same audio.
-            matches = []
-
-            for language in ("bn-BD", "en-US"):
-                try:
-                    text = recognizer.recognize_google(
-                        audio,
-                        language=language,
-                    )
-                    print(f"Heard [{language}]: {text}")
-
-                    action = COMMANDS.get(normalize(text))
-                    if action is not None:
-                        matches.append(action)
-
-                except sr.UnknownValueError:
-                    pass
-
-            unique_matches = set(matches)
-
-            if len(unique_matches) == 1:
-                action = next(iter(unique_matches))
-
-                if action[0] == "dictate":
-                    paste_dictated_message(recognizer, microphone)
-                    continue
-
-                if execute_action(action):
-                    return
-
-            elif len(unique_matches) > 1:
-                print("Ambiguous result. No action taken.")
-            else:
-                print("Command not matched exactly. No action taken.")
-
-        except sr.WaitTimeoutError:
-            print("No speech detected. Try again.")
-        except sr.RequestError as error:
-            print("Online recognition error:", error)
-            print("Check your internet connection.")
-            return
-        except KeyboardInterrupt:
-            print("\nVoice mode stopped.")
-            return
-
-
-def dictation_requested(recognizer, audio):
-    """Detect only exact dictation-start commands."""
-    recognized_actions = []
-
-    for language in ("bn-BD", "en-US"):
-        try:
-            text = recognizer.recognize_google(audio, language=language)
-            print(f"Heard [{language}]: {text}")
-            action = COMMANDS.get(normalize(text))
-            if action is not None:
-                recognized_actions.append(action)
-        except sr.UnknownValueError:
-            pass
-        except sr.RequestError:
-            raise
-
-    unique = set(recognized_actions)
-    return len(unique) == 1 and next(iter(unique))[0] == "dictate"
-
-
-def main():
-    print("=" * 58)
-    print("MH2 PC ASSISTANT — ONLINE VOICE")
-    print("No Firebase or database connection.")
-    print("Type /voice, /help, or /quit.")
-    print("=" * 58)
-
-    while True:
-        try:
-            command = input("MH2> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            break
-
-        if command.lower() == "/quit":
-            break
-
-        if command.lower() == "/help":
-            print("""
-APPLICATIONS:
-  Open Notepad, Open Calculator, Open Word, Open Excel
-
-BROWSER:
-  Open Chrome, Open YouTube, Open Google, Open Gmail
-  Open WhatsApp, New Tab, Close Tab, Next Tab, Previous Tab
-
-WINDOWS:
-  Close This Window, Switch Window, Minimize Window
-  Maximize Window, Close All Windows (shows desktop only)
-
-MOUSE:
-  Move Mouse Left/Right/Up/Down, Mouse Click, Right Click
-  Scroll Up, Scroll Down
-
-WHATSAPP:
-  Open WhatsApp
-  Select a chat and click its message box.
-  Say 'dictate message', then speak your message.
-  Review the typed message and say 'send message'.
-  Sending requires typing SEND in the terminal.
-
-POWER:
-  Shut Down PC, Restart PC, Sleep PC
-  Power actions require typing YES in the terminal.
-  Cancel Shutdown cancels a pending shutdown/restart countdown.
-
-VOICE:
-  /voice
-  Stop Listening
-""")
-            continue
-
-        if command.lower() == "/voice":
-            voice_mode()
-            continue
-
-        if command:
-            execute(command)
-
-    print("Goodbye!")
-
-
-if __name__ == "__main__":
-    main()
+EXPLORER_CLASSES = {"CabinetWClass", "ExploreWClass"}
+CHROME_CLASS = "Chrome_WidgetWin_1"
+ITEM_KINDS = {"ListItemControl", "DataItemControl", "TreeItemControl"}
+
+KNOWN_FOLDER_IDS = {
+    "DOWNLOADS": "374DE290-123F-4565-9164-39C4925E467B",
+    "DESKTOP": "B4BFCC3A-DB2C-424C-B029-7FE99A87C641",
+    "DOCUMENTS": "FDD39AD0-238F-46AF-ADB4-6C85480369C7",
+    "PICTURES": "33E28130-4E1E-4676-835A-98395C3BC3BB",
+    "MUSIC": "4BD8D571-6D19-48D3-BE97-422220080E43",
+    "VIDEOS": "18989B1D-99B5-455B-841C-AB7C74E4DDFC",
+}
+
+FOLDER_WORDS = {}
+
+for _name in ("DOWNLOADS", "DESKTOP", "DOCUMENTS", "PICTURES", "MUSIC", "VIDEOS", "HOME"):
+    FOLDER_WORDS[_name] = _name
+    FOLDER_WORDS[_name + " FOLDER"] = _name
+
+FOLDER_WORDS.update({
+    "DOWNLOAD": "DOWNLOADS",
+    "DOWNLOAD FOLDER": "DOWNLOADS",
+    "DOCUMENT": "DOCUMENTS",
+    "DOCUMENT FOLDER": "DOCUMENTS",
+    "PICTURE": "PICTURES",
+    "PICTURE FOLDER": "PICTURES",
+    "IMAGES": "PICTURES",
+    "PHOTOS": "PICTURES",
+    "VIDEO": "VIDEOS",
+    "VIDEO FOLDER": "VIDEOS",
+})
+
+SITE_URLS = {
+    "YOUTUBE": "https://www.youtube.com",
+    "GOOGLE": "https://www.google.com",
+    "GITHUB": "https://github.com",
+    "FACEBOOK": "https://www.facebook.com",
+    "GMAIL": "https://mail.google.com",
+}
+
+SITE_KEYWORDS = {
+    "YOUTUBE": "youtube",
+    "GITHUB": "github",
+    "FACEBOOK": "facebook",
+    "GMAIL": "gmail",
+}
+
+SEARCH_URLS = {
+    "YOUTUBE": "https://www.youtube.com/results?search_query=",
+    "FACEBOOK": "https://www.facebook.com/search/top/?q=",
+    "GOOGLE": "https://www.google.com/search?q=",
+    "GITHUB": "https://github.com/search?q=",
+}
+
+BROWSER_ACTIONS = {
+    "NEW_TAB": (("ctrl", "t"), "new tab opened"),
+    "CLOSE_TAB": (("ctrl", "w"), "tab closed"),
+    "NEXT_TAB": (("ctrl", "tab"), "switched to the next tab"),
+    "PREVIOUS_TAB": (("ctrl", "shift", "tab"), "switched to the previous tab"),
+    "REOPEN_TAB": (("ctrl", "shift", "t"), "reopened the last closed tab"),
+    "RELOAD_PAGE": (("ctrl", "r"), "page reloaded"),
+    "RELOAD_TAB": (("ctrl", "r"), "page reloaded"),
+    "ADDRESS_BAR": (("ctrl", "l"), "address bar focused"),
+    "NEW_WINDOW": (("ctrl", "n"), "new window opened"),
+    "INCOGNITO": (("ctrl", "shift", "n"), "incognito window opened"),
+}
+
+BROWSER_PHRASES = {
+    "NEW TAB": "NEW_TAB",
+    "OPEN NEW TAB": "NEW_TAB",
+    "OPEN A NEW TAB": "NEW_TAB",
+    "CLOSE TAB": "CLOSE_TAB",
+    "CLOSE THIS TAB": "CLOSE_TAB",
+    "CLOSE THE TAB": "CLOSE_TAB",
+    "CLOSE CURRENT TAB": "CLOSE_TAB",
+    "NEXT TAB": "NEXT_TAB",
+    "SWITCH TAB": "NEXT_TAB",
+    "GO TO NEXT TAB": "NEXT_TAB",
+    "SWITCH TO NEXT TAB": "NEXT_TAB",
+    "PREVIOUS TAB": "PREVIOUS_TAB",
+    "PREV TAB": "PREVIOUS_TAB",
+    "LAST TAB": "PREVIOUS_TAB",
+    "GO TO PREVIOUS TAB": "PREVIOUS_TAB",
+    "SWITCH TO PREVIOUS TAB": "PREVIOUS_TAB",
+    "REOPEN TAB": "REOPEN_TAB",
+    "REOPEN CLOSED TAB": "REOPEN_TAB",
+    "REOPEN LAST TAB": "REOPEN_TAB",
+    "REOPEN THE TAB": "REOPEN_TAB",
+    "RELOAD": "RELOAD_PAGE",
+    "RELOAD PAGE": "RELOAD_PAGE",
+    "RELOAD THE PAGE": "RELOAD_PAGE",
+    "RELOAD TAB": "RELOAD_PAGE",
+    "REFRESH": "RELOAD_PAGE",
+    "REFRESH PAGE": "RELOAD_PAGE",
+    "NEW WINDOW": "NEW_WINDOW",
+    "OPEN NEW WINDOW": "NEW_WINDOW",
+    "OPEN A NEW WINDOW": "NEW_WINDOW",
+    "OPEN ADDRESS BAR": "ADDRESS_BAR",
+    "ADDRESS BAR": "ADDRESS_BAR",
+    "FOCUS ADDRESS BAR": "ADDRESS_BAR",
+    "OPEN URL BAR": "ADDRESS_BAR",
+    "INCOGNITO": "INCOGNITO",
+    "OPEN INCOGNITO": "INCOGNITO",
+    "NEW INCOGNITO WINDOW": "INCOGNITO",
+}
+
+KEY_NAMES = {
+    "enter": "enter",
+    "return": "enter",
+    "space": "space",
+    "spacebar": "space",
+    "space bar": "space",
+    "backspace": "backspace",
+    "back space": "backspace",
+    "delete": "delete",
+    "del": "delete",
+    "tab": "tab",
+    "escape": "esc",
+    "esc": "esc",
+    "up": "up",
+    "arrow up": "up",
+    "up arrow": "up",
+    "down": "down",
+    "arrow down": "down",
+    "down arrow": "down",
+    "left": "left",
+    "arrow left": "left",
+    "left arrow": "left",
+    "right": "right",
+    "arrow right": "right",
+    "right arrow": "right",
+    "home": "home",
+    "end": "end",
+    "page up": "pageup",
+    "pageup": "pageup",
+    "pgup": "pageup",
+    "page down": "pagedown",
+    "pagedown": "pagedown",
+    "pgdn": "pagedown",
+    "pgdown": "pagedown",
+    "insert": "insert",
+}
+
+MODIFIERS = {
+    "ctrl": "ctrl",
+    "control": "ctrl",
+    "alt": "alt",
+    "shift": "shift",
+    "win": "win",
+    "windows": "win",
+}
+
+SYMBOL_KEYS = set("/-=,.[]")
+
+BLOCKED_COMBOS = {
+    frozenset(("alt", "f4")),
+    frozenset(("ctrl", "alt", "delete")),
+    frozenset(("win", "r")),
+}
+
+# DEVELOPMENT IN PROGRESS
+# This project is currently under active development.
+# New features, improvements, bug fixes, and performance optimizations are ongoing.
+# The code is not yet considered a final stable release.
