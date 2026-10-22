@@ -344,7 +344,687 @@ BLOCKED_COMBOS = {
     frozenset(("win", "r")),
 }
 
+PHRASE_COMBOS = {
+    "SELECT ALL": "ctrl+a",
+    "SELECT EVERYTHING": "ctrl+a",
+    "COPY": "ctrl+c",
+    "CUT": "ctrl+x",
+    "PASTE": "ctrl+v",
+    "UNDO": "ctrl+z",
+    "REDO": "ctrl+y",
+    "SAVE": "ctrl+s",
+    "SAVE FILE": "ctrl+s",
+    "SAVE DOCUMENT": "ctrl+s",
+}
+
+BARE_KEY_PHRASES = {
+    "ENTER", "SPACE", "SPACEBAR", "SPACE BAR", "BACKSPACE", "BACK SPACE",
+    "DELETE", "TAB", "ESCAPE", "ESC", "HOME", "END",
+    "ARROW UP", "ARROW DOWN", "ARROW LEFT", "ARROW RIGHT",
+    "UP ARROW", "DOWN ARROW", "LEFT ARROW", "RIGHT ARROW",
+    "PAGE UP", "PAGE DOWN", "PAGEUP", "PAGEDOWN", "PGUP", "PGDN",
+}
+
+SINGLE_WORD_OK = {
+    "STATUS", "SCREENSHOT", "LOCK", "MUTE", "UNMUTE", "RELOAD", "REFRESH",
+    "INCOGNITO", "CLICK", "MINIMIZE", "MINIMISE", "MAXIMIZE", "MAXIMISE",
+    "RESTORE",
+}
+
+DANGEROUS_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:SHUTDOWN|SHUT DOWN|TURN OFF|RESTART|REBOOT|DELETE|"
+    r"EMPTY RECYCLE|CLEAR RECYCLE|SEND|DRAFT|PREPARE|TYPE|TYPING|HOTKEY)"
+    r"(?![A-Za-z0-9])",
+    re.IGNORECASE
+)
+
+COPY_ALL_WORDS = {"ALL", "EVERYTHING", "ALL FILES", "ALL ITEMS"}
+
+APP_ALIASES = {
+    "GOOGLE CHROME": "CHROME",
+    "CHROME BROWSER": "CHROME",
+    "BROWSER": "CHROME",
+    "WHATS APP": "WHATSAPP",
+    "WHATSAPP WEB": "WHATSAPP",
+    "FILE EXPLORER": "FILE MANAGER",
+    "WINDOWS EXPLORER": "FILE MANAGER",
+    "EXPLORER": "FILE MANAGER",
+    "THIS PC": "FILE MANAGER",
+    "MY COMPUTER": "FILE MANAGER",
+    "FILES": "FILE MANAGER",
+    "CALC": "CALCULATOR",
+    "MS WORD": "WORD",
+    "MICROSOFT WORD": "WORD",
+    "MS EXCEL": "EXCEL",
+    "MICROSOFT EXCEL": "EXCEL",
+    "MS POWERPOINT": "POWERPOINT",
+    "MICROSOFT POWERPOINT": "POWERPOINT",
+    "MICROSOFT EDGE": "EDGE",
+    "MS PAINT": "PAINT",
+    "TEXT EDITOR": "NOTEPAD",
+}
+
+BENGALI_RE = re.compile(r"[\u0980-\u09FF]")
+BN_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789")
+
+BN_LIGHT = {
+    "করো", "করুন", "কর", "করেন", "করে", "দাও", "দিন", "নাও", "নিন",
+    "চাপো", "চাপুন", "চাপ", "দেন",
+}
+
+BN_NAME_SUFFIXES = ("ে", "টা", "টি", "কে", "তে")
+
+BN_OPEN_VERBS = (
+    "ওপেন", "খোলো", "খুলো", "খোল", "খুলুন", "খোলুন", "খুলে", "চালু",
+    "চালাও", "চালান", "চালিয়ে", "স্টার্ট", "লঞ্চ",
+)
+
+BN_SEARCH_VERBS = (
+    "সার্চ", "খুঁজো", "খুঁজুন", "খোঁজো", "খুঁজে", "খুজো", "খুজে", "খোজো",
+)
+
+BN_TYPE_VERBS = ("টাইপ", "লেখো", "লিখো", "লিখুন", "লেখ")
+
+BN_FILLERS = (
+    "আমার", "আমাকে", "একটু", "একটা", "একটি", "প্লিজ", "দয়া করে", "এখন",
+    "এবার", "তুমি", "ভাই", "এই", "ওই", "হ্যালো", "একবার",
+)
+
+BN_APPS = {
+    "CHROME": (
+        "ক্রোম", "গুগল ক্রোম", "ক্রোম ব্রাউজার", "ব্রাউজার", "ক্রোম্",
+    ),
+    "WHATSAPP": (
+        "হোয়াটসঅ্যাপ", "হোয়াটস অ্যাপ", "হোয়াটসএপ", "হোয়াটস এপ",
+        "হোয়াটসঅ্যাপ ওয়েব", "হোয়াটস্যাপ", "হোয়াটসাপ",
+    ),
+    "NOTEPAD": ("নোটপ্যাড", "নোট প্যাড", "টেক্সট এডিটর"),
+    "CALCULATOR": (
+        "ক্যালকুলেটর", "ক্যালকুলেটার", "ক্যাল্কুলেটর", "ক্যালকুলেটর অ্যাপ",
+    ),
+    "PAINT": ("পেইন্ট", "পেন্ট", "এমএস পেইন্ট"),
+    "WORD": (
+        "ওয়ার্ড", "মাইক্রোসফট ওয়ার্ড", "মাইক্রোসফ্ট ওয়ার্ড", "এমএস ওয়ার্ড",
+    ),
+    "EXCEL": ("এক্সেল", "মাইক্রোসফট এক্সেল", "এমএস এক্সেল"),
+    "POWERPOINT": ("পাওয়ারপয়েন্ট", "পাওয়ার পয়েন্ট", "মাইক্রোসফট পাওয়ারপয়েন্ট"),
+    "EDGE": ("এজ", "মাইক্রোসফট এজ", "মাইক্রোসফ্ট এজ"),
+    "SETTINGS": ("সেটিংস", "সেটিং", "সেটিংস অ্যাপ"),
+    "TASK MANAGER": ("টাস্ক ম্যানেজার",),
+    "FILE MANAGER": (
+        "ফাইল ম্যানেজার", "ফাইল এক্সপ্লোরার", "এক্সপ্লোরার", "দিস পিসি",
+        "মাই কম্পিউটার", "ফাইল", "ফাইলস",
+    ),
+    "YOUTUBE": ("ইউটিউব", "ইউ টিউব", "ইউটিউভ"),
+    "GOOGLE": ("গুগল", "গুগুল"),
+    "FACEBOOK": ("ফেসবুক", "ফেইসবুক", "ফেস বুক"),
+    "GITHUB": ("গিটহাব", "গিট হাব"),
+    "GMAIL": ("জিমেইল", "জি মেইল", "জিমেল"),
+    "DOWNLOADS": (
+        "ডাউনলোড", "ডাউনলোডস", "ডাউনলোড ফোল্ডার", "ডাউনলোডস ফোল্ডার",
+    ),
+    "DESKTOP": ("ডেস্কটপ", "ডেস্কটপ ফোল্ডার"),
+    "DOCUMENTS": (
+        "ডকুমেন্ট", "ডকুমেন্টস", "ডকুমেন্ট ফোল্ডার", "ডকুমেন্টস ফোল্ডার",
+    ),
+    "PICTURES": ("ছবি", "ছবির ফোল্ডার", "ছবি ফোল্ডার", "পিকচার", "পিকচারস"),
+    "MUSIC": ("গান", "গানের ফোল্ডার", "মিউজিক", "মিউজিক ফোল্ডার"),
+    "VIDEOS": ("ভিডিও", "ভিডিওস", "ভিডিও ফোল্ডার"),
+    "RECYCLE BIN": ("রিসাইকেল বিন",),
+    "HOME": ("হোম ফোল্ডার", "হোম"),
+    "DRIVE": ("ড্রাইভ",),
+}
+
+BN_DRIVES = {
+    "সি": "C", "ডি": "D", "ই": "E", "এফ": "F", "জি": "G", "এইচ": "H",
+}
+
+BN_PHRASE_GROUPS = (
+    ("SCREENSHOT", ("স্ক্রিনশট", "স্ক্রীনশট", "স্ক্রিন শট")),
+    ("LOCK", ("লক", "পিসি লক", "কম্পিউটার লক", "স্ক্রিন লক", "লক স্ক্রিন")),
+    ("VOLUME UP", (
+        "ভলিউম বাড়াও", "ভলিউম বাড়ান", "ভলিউম বাড়িয়ে", "ভলিউম আপ",
+        "সাউন্ড বাড়াও", "আওয়াজ বাড়াও", "শব্দ বাড়াও", "ভলিউম বাড়ানো",
+    )),
+    ("VOLUME DOWN", (
+        "ভলিউম কমাও", "ভলিউম কমান", "ভলিউম কমিয়ে", "ভলিউম ডাউন",
+        "সাউন্ড কমাও", "আওয়াজ কমাও", "শব্দ কমাও", "ভলিউম কমানো",
+    )),
+    ("MUTE", (
+        "মিউট", "ভলিউম মিউট", "সাউন্ড মিউট", "আওয়াজ বন্ধ", "শব্দ বন্ধ",
+    )),
+    ("UNMUTE", ("আনমিউট",)),
+    ("NEW TAB", ("নতুন ট্যাব", "নিউ ট্যাব")),
+    ("CLOSE TAB", ("ট্যাব বন্ধ", "ট্যাব ক্লোজ", "ক্লোজ ট্যাব")),
+    ("NEXT TAB", ("পরের ট্যাব", "পরবর্তী ট্যাব", "নেক্সট ট্যাব")),
+    ("PREVIOUS TAB", ("আগের ট্যাব", "পূর্ববর্তী ট্যাব", "প্রিভিয়াস ট্যাব")),
+    ("REOPEN TAB", ("রিওপেন ট্যাব",)),
+    ("RELOAD", (
+        "রিলোড", "রিফ্রেশ", "রিলোড পেজ", "পেজ রিলোড", "পেজ রিফ্রেশ",
+        "রিফ্রেশ পেজ",
+    )),
+    ("NEW WINDOW", ("নতুন উইন্ডো", "নিউ উইন্ডো")),
+    ("INCOGNITO", ("ইনকগনিটো", "ইনকগনিটো উইন্ডো", "ইনকগনিটো মোড")),
+    ("ADDRESS BAR", ("অ্যাড্রেস বার", "এড্রেস বার", "ইউআরএল বার")),
+    ("CLOSE WINDOW", ("উইন্ডো বন্ধ", "উইন্ডো ক্লোজ", "ক্লোজ উইন্ডো")),
+    ("MINIMIZE", ("মিনিমাইজ", "মিনিমাইজ উইন্ডো")),
+    ("MAXIMIZE", ("ম্যাক্সিমাইজ", "ম্যাক্সিমাইজ উইন্ডো")),
+    ("RESTORE", ("রিস্টোর", "রিস্টোর উইন্ডো")),
+    ("MINIMIZE ALL", ("সব মিনিমাইজ", "সব উইন্ডো মিনিমাইজ")),
+    ("SHOW DESKTOP", ("ডেস্কটপ দেখাও", "ডেস্কটপ দেখান", "শো ডেস্কটপ")),
+    ("SWITCH WINDOW", ("উইন্ডো পরিবর্তন", "উইন্ডো সুইচ", "সুইচ উইন্ডো")),
+    ("LIST WINDOWS", ("উইন্ডো লিস্ট", "উইন্ডো তালিকা", "খোলা উইন্ডো")),
+    ("SNAP LEFT", ("স্ন্যাপ বামে", "স্ন্যাপ লেফট", "উইন্ডো বামে")),
+    ("SNAP RIGHT", ("স্ন্যাপ ডানে", "স্ন্যাপ রাইট", "উইন্ডো ডানে")),
+    ("SCROLL DOWN", ("নিচে স্ক্রল", "স্ক্রল ডাউন", "স্ক্রল নিচে")),
+    ("SCROLL UP", ("উপরে স্ক্রল", "স্ক্রল আপ", "স্ক্রল উপরে")),
+    ("SCROLL RIGHT", ("ডানে স্ক্রল", "স্ক্রল ডানে")),
+    ("SCROLL LEFT", ("বামে স্ক্রল", "স্ক্রল বামে")),
+    ("MOUSE POSITION", ("মাউস পজিশন", "মাউসের পজিশন")),
+    ("MOUSE MOVE UP", ("মাউস উপরে",)),
+    ("MOUSE MOVE DOWN", ("মাউস নিচে",)),
+    ("MOUSE MOVE LEFT", ("মাউস বামে",)),
+    ("MOUSE MOVE RIGHT", ("মাউস ডানে",)),
+    ("CLICK", ("ক্লিক",)),
+    ("DOUBLE CLICK", ("ডাবল ক্লিক",)),
+    ("RIGHT CLICK", ("রাইট ক্লিক",)),
+    ("MIDDLE CLICK", ("মিডল ক্লিক",)),
+    ("LEFT CLICK", ("লেফট ক্লিক",)),
+    ("SELECT ALL", ("সব সিলেক্ট", "সিলেক্ট অল", "সবকিছু সিলেক্ট", "সব নির্বাচন")),
+    ("COPY", ("কপি",)),
+    ("CUT", ("কাট",)),
+    ("PASTE", ("পেস্ট",)),
+    ("UNDO", ("আনডু",)),
+    ("REDO", ("রিডু",)),
+    ("SAVE", ("সেভ",)),
+    ("ENTER", ("এন্টার", "এন্টার কি")),
+    ("SPACE", ("স্পেস", "স্পেসবার")),
+    ("BACKSPACE", ("ব্যাকস্পেস",)),
+    ("ESCAPE", ("এস্কেপ",)),
+    ("PAGE UP", ("পেজ আপ",)),
+    ("PAGE DOWN", ("পেজ ডাউন",)),
+    ("SHUTDOWN", (
+        "শাটডাউন", "পিসি শাটডাউন", "কম্পিউটার শাটডাউন", "কম্পিউটার বন্ধ",
+        "পিসি বন্ধ",
+    )),
+    ("RESTART", ("রিস্টার্ট", "রিবুট", "পিসি রিস্টার্ট", "কম্পিউটার রিস্টার্ট")),
+    ("CANCEL SHUTDOWN", ("শাটডাউন বাতিল", "রিস্টার্ট বাতিল", "শাটডাউন ক্যান্সেল")),
+    ("CANCEL ACTION", ("বাতিল", "ক্যান্সেল", "ক্যানসেল", "থাক")),
+    ("CONFIRM SHUTDOWN", ("কনফার্ম শাটডাউন", "শাটডাউন কনফার্ম", "নিশ্চিত শাটডাউন")),
+    ("CONFIRM RESTART", (
+        "কনফার্ম রিস্টার্ট", "রিস্টার্ট কনফার্ম", "নিশ্চিত রিস্টার্ট",
+        "কনফার্ম রিবুট",
+    )),
+    ("CONFIRM DELETE", ("কনফার্ম ডিলিট", "ডিলিট কনফার্ম", "নিশ্চিত ডিলিট")),
+    ("CONFIRM EMPTY RECYCLE BIN", (
+        "কনফার্ম রিসাইকেল বিন খালি", "কনফার্ম খালি রিসাইকেল বিন",
+    )),
+    ("EMPTY RECYCLE BIN", (
+        "রিসাইকেল বিন খালি", "রিসাইকেল বিন ক্লিয়ার", "খালি রিসাইকেল বিন",
+    )),
+    ("DELETE SELECTED", (
+        "সিলেক্টেড ফাইল ডিলিট", "সিলেক্ট করা ফাইল ডিলিট", "সিলেক্টেড ডিলিট",
+    )),
+    ("DELETE ALL FILES", ("সব ফাইল ডিলিট",)),
+    ("STATUS", ("স্ট্যাটাস", "স্ট্যাটাস দেখাও")),
+    ("SEND IT", ("সেন্ড", "পাঠাও", "পাঠান")),
+    ("SEND MESSAGE", ("মেসেজ পাঠাও", "মেসেজ সেন্ড")),
+    ("FIRST CHAT", ("প্রথম চ্যাট", "প্রথম রেজাল্ট", "প্রথম কন্টাক্ট")),
+)
+
+BN_MESSAGE_RE = re.compile(
+    r"^(?:হোয়াটস\s?(?:অ্যাপ|এপ)ে?\s+)?(.+?)\s*কে\s+"
+    r"(?:হোয়াটস\s?(?:অ্যাপ|এপ)ে?\s+)?"
+    r"(?:মেসেজ|ম্যাসেজ|মেসেজটা|বার্তা)\s+"
+    r"(পাঠাও|পাঠান|পাঠিয়ে\s+দাও|লেখো|লিখো|লিখুন)\s*(.*)$"
+)
+
+SEARCH_SITES = {"YOUTUBE", "GOOGLE", "FACEBOOK", "GITHUB", "WHATSAPP"}
+
+VOCAB = {}
+
+
+def add_vocab(keys, kind, value, suffixes=False):
+    for key in keys:
+        variants = [key]
+
+        if suffixes:
+            variants.extend(
+                key + suffix
+                for suffix in BN_NAME_SUFFIXES
+                if not key.endswith(suffix)
+            )
+
+        for variant in variants:
+            VOCAB[tuple(variant.lower().split())] = (kind, value)
+
+
+for _english, _keys in BN_APPS.items():
+    add_vocab(_keys, "name", _english, True)
+
+for _letter_bn, _letter in BN_DRIVES.items():
+    add_vocab((_letter_bn + " ড্রাইভ",), "name", _letter + " DRIVE")
+
+for _english, _keys in BN_PHRASE_GROUPS:
+    add_vocab(_keys, "phrase", _english)
+
+add_vocab(BN_OPEN_VERBS, "open", "")
+add_vocab(("open", "launch", "start"), "open", "")
+add_vocab(BN_SEARCH_VERBS, "search", "")
+add_vocab(("search", "find"), "search", "")
+add_vocab(BN_TYPE_VERBS, "type", "")
+add_vocab(("type",), "type", "")
+add_vocab(BN_FILLERS, "filler", "")
+
+VOCAB_MAX = max(len(_key) for _key in VOCAB)
+
+
+def bn_segments(value):
+    tokens = value.split()
+    lowered = [token.lower() for token in tokens]
+    count = len(tokens)
+    segments = []
+    index = 0
+
+    while index < count:
+        size = 0
+        entry = None
+
+        for length in range(min(VOCAB_MAX, count - index), 0, -1):
+            entry = VOCAB.get(tuple(lowered[index:index + length]))
+
+            if entry is not None:
+                size = length
+                break
+
+        if entry is None:
+            segments.append(("raw", tokens[index], tokens[index]))
+            index += 1
+            continue
+
+        end = index + size
+        source = " ".join(tokens[index:end])
+
+        while end < count and tokens[end] in BN_LIGHT:
+            end += 1
+
+        segments.append((entry[0], entry[1], source))
+        index = end
+
+    return segments
+
+
+def bn_search_command(segments):
+    site = None
+    parts = []
+
+    for kind, out, src in segments:
+        if kind in ("search", "open", "type"):
+            continue
+
+        if site is None and kind == "name" and out in SEARCH_SITES:
+            site = out
+            continue
+
+        parts.append(src)
+
+    query = " ".join(parts).strip()
+
+    if site == "WHATSAPP":
+        return ("WHATSAPP SEARCH " + query) if query else "WHATSAPP"
+
+    if site:
+        return ("SEARCH " + site + " " + query).strip()
+
+    return ("SEARCH " + query) if query else "SEARCH"
+
+
+def bn_type_command(segments):
+    position = next(
+        index for index, segment in enumerate(segments) if segment[0] == "type"
+    )
+    allowed = ("raw", "name", "phrase", "filler")
+    after = [segment for segment in segments[position + 1:] if segment[0] in allowed]
+    before = [segment for segment in segments[:position] if segment[0] in allowed]
+    chosen = after if after else before
+    text = " ".join(segment[2] for segment in chosen).strip()
+
+    return ("TYPE " + text) if text else "TYPE"
+
+
+def normalize_voice(text):
+    value = " ".join(
+        str(text).replace("\u0964", " ").replace("\u0965", " ").split()
+    ).strip(" .,!?;")
+
+    if not value or not BENGALI_RE.search(value):
+        return value
+
+    value = value.translate(BN_DIGITS)
+    value = " ".join(re.sub(r"[,;!?\"\u201c\u201d]", " ", value).split())
+
+    message = BN_MESSAGE_RE.match(value)
+
+    if message and message.group(3).strip():
+        verb = "SEND" if message.group(2).startswith("পাঠ") else "DRAFT"
+        return (
+            f"{verb} MESSAGE TO {message.group(1).strip()} "
+            f"SAYING {message.group(3).strip()}"
+        )
+
+    segments = bn_segments(value)
+    kinds = {segment[0] for segment in segments}
+
+    if "search" in kinds:
+        return bn_search_command(segments)
+
+    if "type" in kinds:
+        return bn_type_command(segments)
+
+    meaningful = [
+        segment for segment in segments
+        if segment[0] in ("name", "phrase", "raw")
+    ]
+
+    if "open" in kinds:
+        parts = " ".join(segment[1] for segment in meaningful).strip()
+        return ("OPEN " + parts) if parts else "OPEN"
+
+    if len(meaningful) == 1 and meaningful[0][0] == "name":
+        return "OPEN " + meaningful[0][1]
+
+    return " ".join(segment[1] for segment in meaningful).strip() or value
+
+
+class AgentError(Exception):
+    pass
+
+
+class NotUnderstood(AgentError):
+    pass
+
+
+class UnsupportedCommand(AgentError):
+    pass
+
+
+NO_MATCH = object()
+
+
+class CommandResult:
+
+    def __init__(self, text, requires_confirmation=False, confirm_phrase=None):
+        self.text = text
+        self.requires_confirmation = requires_confirmation
+        self.confirm_phrase = confirm_phrase
+
+
+def register_own_window():
+    try:
+        handle = pygame.display.get_wm_info().get("window")
+    except Exception:
+        handle = None
+
+    if handle:
+        OWN_WINDOWS.add(int(handle))
+
+
+def window_title(hwnd):
+    length = user32.GetWindowTextLengthW(hwnd)
+
+    if length <= 0:
+        return ""
+
+    buffer = ctypes.create_unicode_buffer(length + 1)
+    user32.GetWindowTextW(hwnd, buffer, length + 1)
+
+    return buffer.value
+
+
+def window_class(hwnd):
+    buffer = ctypes.create_unicode_buffer(256)
+    user32.GetClassNameW(hwnd, buffer, 256)
+
+    return buffer.value
+
+
+def is_cloaked(hwnd):
+    cloaked = wintypes.DWORD(0)
+
+    try:
+        result = dwmapi.DwmGetWindowAttribute(
+            hwnd,
+            DWMWA_CLOAKED,
+            ctypes.byref(cloaked),
+            ctypes.sizeof(cloaked)
+        )
+    except OSError:
+        return False
+
+    return result == 0 and cloaked.value != 0
+
+
+def list_windows():
+    results = []
+
+    def callback(hwnd, lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+
+        if hwnd in OWN_WINDOWS:
+            return True
+
+        title = window_title(hwnd)
+
+        if not title:
+            return True
+
+        cls = window_class(hwnd)
+
+        if cls in SHELL_CLASSES or is_cloaked(hwnd):
+            return True
+
+        results.append((hwnd, title, cls))
+        return True
+
+    user32.EnumWindows(WNDENUMPROC(callback), 0)
+
+    return results
+
+
+def find_window(matcher):
+    for hwnd, title, cls in list_windows():
+        if matcher(title, cls):
+            return hwnd, title
+
+    return None
+
+
+def wait_for_window(matcher, timeout=WINDOW_WAIT_TIMEOUT):
+    deadline = time.time() + timeout
+
+    while time.time() < deadline:
+        found = find_window(matcher)
+
+        if found:
+            return found
+
+        time.sleep(0.4)
+
+    return None
+
+
+def focus_window(hwnd, attempts=3):
+    for _ in range(attempts):
+        if not user32.IsWindow(hwnd):
+            return False
+
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, SW_RESTORE)
+
+        current_thread = kernel32.GetCurrentThreadId()
+        foreground = user32.GetForegroundWindow()
+        foreground_thread = 0
+
+        if foreground:
+            foreground_thread = user32.GetWindowThreadProcessId(
+                foreground, None
+            )
+
+        attached = False
+
+        if foreground_thread and foreground_thread != current_thread:
+            attached = bool(
+                user32.AttachThreadInput(
+                    current_thread, foreground_thread, True
+                )
+            )
+
+        try:
+            user32.BringWindowToTop(hwnd)
+            user32.SetForegroundWindow(hwnd)
+        finally:
+            if attached:
+                user32.AttachThreadInput(
+                    current_thread, foreground_thread, False
+                )
+
+        time.sleep(0.35)
+
+        if user32.GetForegroundWindow() == hwnd:
+            return True
+
+    return False
+
+
+def input_target():
+    hwnd = user32.GetForegroundWindow()
+
+    if not hwnd:
+        raise AgentError("There is no active window.")
+
+    if window_class(hwnd) in SHELL_CLASSES:
+        raise AgentError(
+            "The desktop or taskbar is active. Focus an application window first."
+        )
+
+    console = kernel32.GetConsoleWindow()
+
+    if console and hwnd == console:
+        raise AgentError(
+            "The agent console is the active window. "
+            "Focus the target application first."
+        )
+
+    if hwnd in OWN_WINDOWS:
+        raise AgentError(
+            "The MH2 interface window is the active window. "
+            "Focus the target application first."
+        )
+
+    return hwnd
+
+
+def foreground_window():
+    hwnd = user32.GetForegroundWindow()
+
+    if not hwnd:
+        raise AgentError("There is no active window.")
+
+    if window_class(hwnd) in SHELL_CLASSES:
+        raise AgentError(
+            "The desktop or taskbar is active. Focus an application window first."
+        )
+
+    if hwnd in OWN_WINDOWS:
+        raise AgentError(
+            "The MH2 interface window is the active window. "
+            "Focus the target application first."
+        )
+
+    return hwnd
+
+
+def require_explorer():
+    hwnd = user32.GetForegroundWindow()
+
+    if not hwnd or window_class(hwnd) not in EXPLORER_CLASSES:
+        raise AgentError(
+            "File Explorer must be the active window. "
+            "Open the folder and select the files first."
+        )
+
+    return window_title(hwnd)
+
+
+def explorer_active():
+    hwnd = user32.GetForegroundWindow()
+    return bool(hwnd) and window_class(hwnd) in EXPLORER_CLASSES
+
+
+def match_chrome(title, cls):
+    return cls == CHROME_CLASS and "google chrome" in title.lower()
+
+
+def match_whatsapp(title, cls):
+    return "whatsapp" in title.lower() and cls not in EXPLORER_CLASSES
+
+
+def match_explorer(title, cls):
+    return cls in EXPLORER_CLASSES
+
+
+def match_notepad(title, cls):
+    return cls != CHROME_CLASS and (
+        cls == "Notepad" or "notepad" in title.lower()
+    )
+
+
+def match_word(title, cls):
+    lowered = title.lower()
+    return lowered.endswith("- word") or lowered == "word"
+
+
+def match_excel(title, cls):
+    lowered = title.lower()
+    return lowered.endswith("- excel") or lowered == "excel"
+
+
+def match_powerpoint(title, cls):
+    return "powerpoint" in title.lower()
+
+
+def match_edge(title, cls):
+    return "microsoft edge" in title.lower() or "microsoft\u200b edge" in title.lower()
+
+
+def match_calculator(title, cls):
+    return title.lower() == "calculator"
+
+
+def match_paint(title, cls):
+    return cls != CHROME_CLASS and "paint" in title.lower()
+
+
+def match_task_manager(title, cls):
+    return title.lower() == "task manager"
+
+
+def match_settings(title, cls):
+    return title.lower() == "settings"
+
+
+def match_recycle_bin(title, cls):
+    return cls in EXPLORER_CLASSES and "recycle bin" in title.lower()
+
+
+        
+
 # DEVELOPMENT IN PROGRESS
 # This project is currently under active development.
 # New features, improvements, bug fixes, and performance optimizations are ongoing.
 # The code is not yet considered a final stable release.
+
+
+
+
