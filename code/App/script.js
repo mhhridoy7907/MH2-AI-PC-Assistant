@@ -1,4 +1,3 @@
-
 "use strict";
 
 const $ = id => document.getElementById(id);
@@ -8,6 +7,19 @@ const STORAGE = {
   url: "mh2_pc_assistant_database_url",
   token: "mh2_pc_assistant_auth_token",
   messages: "mh2_pc_assistant_chat_history"
+};
+
+const DATABASE_URL_PATTERN = /^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/;
+const POLL_INTERVAL_MS = 1500;
+const COMMAND_TIMEOUT_MS = 45000;
+const DEFAULT_CONFIRMATION_SECONDS = 60;
+
+const STATUS_LABELS = {
+  queued: "Waiting for PC agent",
+  sent: "Sent to Firebase",
+  processing: "PC is processing",
+  completed: "Completed",
+  error: "Failed"
 };
 
 const state = {
@@ -32,6 +44,8 @@ const state = {
   awaitingPcResponse: false,
   waitingForConfirmation: false,
   pendingDangerousAction: null,
+  confirmPhrase: "",
+  confirmUntil: 0,
   lastCommand: "",
   audioContext: null,
   ringOscillators: [],
@@ -44,6 +58,7 @@ const state = {
   speechGeneration: 0,
   recognitionGeneration: 0,
   listenTimer: null,
+  nextListenDelay: 0,
   speechPromiseResolve: null,
   activeCommandCount: 0,
   typingMode: false,
@@ -106,21 +121,11 @@ function makeAvatar(role) {
     : '<div class="avatar bot-avatar">✦</div>';
 }
 
-function renderMessage(message) {
-  if (!$("messages")) return;
-
+function buildRow(message) {
   const row = document.createElement("div");
   row.className = "message-row " +
     (message.role === "user" ? "user" : "bot");
   row.dataset.messageId = message.id;
-
-  const labels = {
-    queued: "Waiting for PC agent",
-    sent: "Sent to Firebase",
-    processing: "PC is processing",
-    completed: "Completed",
-    error: "Failed"
-  };
 
   row.innerHTML =
     makeAvatar(message.role) +
@@ -132,12 +137,17 @@ function renderMessage(message) {
       '<div class="meta">' + timeLabel(message.timestamp) + '</div>' +
       (message.status
         ? '<div class="msg-status">' +
-            escapeHTML(labels[message.status] || message.status) +
+            escapeHTML(STATUS_LABELS[message.status] || message.status) +
           '</div>'
         : "") +
     '</div>';
 
-  $("messages").appendChild(row);
+  return row;
+}
+
+function renderMessage(message) {
+  if (!$("messages")) return;
+  $("messages").appendChild(buildRow(message));
 }
 
 function renderAll() {
@@ -194,60 +204,37 @@ function updateMessage(id, changes) {
 
   if (!old) return;
 
-  const temp = document.createElement("div");
-  temp.className = "message-row " +
-    (message.role === "user" ? "user" : "bot");
-  temp.dataset.messageId = message.id;
-
-  const labels = {
-    queued: "Waiting for PC agent",
-    sent: "Sent to Firebase",
-    processing: "PC is processing",
-    completed: "Completed",
-    error: "Failed"
-  };
-
-  temp.innerHTML =
-    makeAvatar(message.role) +
-    '<div class="message-content">' +
-      '<div class="message-label">' +
-        (message.role === "user" ? "You" : "MH2 Assistant") +
-      '</div>' +
-      '<div class="bubble">' + escapeHTML(message.text) + '</div>' +
-      '<div class="meta">' + timeLabel(message.timestamp) + '</div>' +
-      (message.status
-        ? '<div class="msg-status">' +
-            escapeHTML(labels[message.status] || message.status) +
-          '</div>'
-        : "") +
-    '</div>';
-
-  old.replaceWith(temp);
+  old.replaceWith(buildRow(message));
 }
 
-function databaseEndpoint(path) {
+function databaseEndpoint(path, query = {}) {
   if (!state.databaseUrl) {
     throw new Error("Configure Firebase in Settings first.");
   }
 
   const base = state.databaseUrl.trim().replace(/\/+$/, "");
 
-  if (!/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(base)) {
+  if (!DATABASE_URL_PATTERN.test(base)) {
     throw new Error("Enter a valid HTTPS Firebase Database URL.");
   }
 
-  let url = base + "/" +
+  const url = base + "/" +
     path.replace(/^\/+/, "").replace(/\/+$/, "") + ".json";
 
-  if (state.authToken) {
-    url += "?auth=" + encodeURIComponent(state.authToken);
-  }
+  const params = new URLSearchParams();
 
-  return url;
+  if (state.authToken) params.set("auth", state.authToken);
+
+  Object.entries(query).forEach(([key, value]) => {
+    params.set(key, value);
+  });
+
+  const queryString = params.toString();
+  return queryString ? url + "?" + queryString : url;
 }
 
-async function databaseRequest(path, options = {}) {
-  const response = await fetch(databaseEndpoint(path), {
+async function databaseRequest(path, options = {}, query = {}) {
+  const response = await fetch(databaseEndpoint(path, query), {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -337,6 +324,13 @@ function cancelListenRestart() {
   state.listenTimer = null;
 }
 
+function clearConfirmation() {
+  state.waitingForConfirmation = false;
+  state.pendingDangerousAction = null;
+  state.confirmPhrase = "";
+  state.confirmUntil = 0;
+}
+
 function stopSpeech() {
   state.speechGeneration++;
 
@@ -349,6 +343,24 @@ function stopSpeech() {
     state.speechPromiseResolve = null;
     resolve(false);
   }
+}
+
+function splitSpeech(text) {
+  const parts = String(text).replace(/\s+/g, " ").match(/[^.!?]+[.!?]*/g) || [];
+  const chunks = [];
+  let current = "";
+
+  parts.forEach(part => {
+    if (current && (current + part).length > 180) {
+      chunks.push(current.trim());
+      current = part;
+    } else {
+      current += part;
+    }
+  });
+
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
 }
 
 function speak(text) {
@@ -364,13 +376,15 @@ function speak(text) {
 
   stopSpeech();
 
+  if (state.recognitionBusy) {
+    try { state.recognition?.abort(); } catch {}
+  }
+
   const generation = state.callGeneration;
   const speechId = state.speechGeneration;
-  const utterance = new SpeechSynthesisUtterance(String(text));
+  const chunks = splitSpeech(text);
 
-  utterance.lang = "en-US";
-  utterance.rate = 0.96;
-  utterance.pitch = 1.02;
+  if (!chunks.length) return Promise.resolve(false);
 
   return new Promise(resolve => {
     let settled = false;
@@ -395,43 +409,52 @@ function speak(text) {
       Math.max(20000, String(text).length * 250)
     );
 
-    utterance.onstart = () => {
-      if (
-        generation !== state.callGeneration ||
-        speechId !== state.speechGeneration ||
-        !state.callActive
-      ) {
+    const stale = () =>
+      generation !== state.callGeneration ||
+      speechId !== state.speechGeneration;
+
+    chunks.forEach((chunk, index) => {
+      const utterance = new SpeechSynthesisUtterance(chunk);
+
+      utterance.lang = "en-US";
+      utterance.rate = 0.96;
+      utterance.pitch = 1.02;
+
+      if (index === 0) {
+        utterance.onstart = () => {
+          if (stale() || !state.callActive) {
+            finish(false);
+            return;
+          }
+
+          setCallSubtitle("MH2 is speaking...");
+          $("callScreen")?.classList.remove("listening");
+        };
+      }
+
+      utterance.onend = () => {
+        if (stale()) {
+          finish(false);
+          return;
+        }
+
+        if (index === chunks.length - 1) {
+          if (state.callActive && state.callConnected && !state.muted) {
+            setCallSubtitle("Ready for your next command");
+          }
+
+          finish(true);
+        }
+      };
+
+      utterance.onerror = () => finish(false);
+
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch {
         finish(false);
-        return;
       }
-
-      setCallSubtitle("MH2 is speaking...");
-      $("callScreen")?.classList.remove("listening");
-    };
-
-    utterance.onend = () => {
-      if (
-        generation !== state.callGeneration ||
-        speechId !== state.speechGeneration
-      ) {
-        finish(false);
-        return;
-      }
-
-      if (state.callActive && state.callConnected && !state.muted) {
-        setCallSubtitle("Ready for your next command");
-      }
-
-      finish(true);
-    };
-
-    utterance.onerror = () => finish(false);
-
-    try {
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      finish(false);
-    }
+    });
   });
 }
 
@@ -624,9 +647,12 @@ async function startCall() {
   state.muted = false;
   state.speakerMode = false;
   state.awaitingPcResponse = false;
-  state.waitingForConfirmation = false;
-  state.pendingDangerousAction = null;
+  state.typingMode = false;
+  state.typingText = "";
+  state.typingTarget = "";
+  state.nextListenDelay = 0;
   state.micPermissionDenied = false;
+  clearConfirmation();
 
   showCallScreen();
 
@@ -664,7 +690,7 @@ async function startCall() {
     updateCallTranscript("MH2: Hello.");
     updateConnection("Voice session active", "connected");
 
-    await speak("Hello. I am ready for your command.");
+    await speak("Hello. ");
 
     if (
       state.callActive &&
@@ -692,10 +718,10 @@ async function endCall() {
   state.recognitionBusy = false;
   state.muted = false;
   state.awaitingPcResponse = false;
-  state.waitingForConfirmation = false;
-  state.pendingDangerousAction = null;
   state.typingMode = false;
   state.typingText = "";
+  state.nextListenDelay = 0;
+  clearConfirmation();
 
   cancelListenRestart();
   clearTimeout(state.connectTimer);
@@ -796,7 +822,12 @@ function setupRecognition() {
     if (state.callActive) {
       handleVoiceCommand(command);
     } else {
-      sendCommand(command, "voice");
+      sendCommand(parseGeneralCommand(command) || command, "voice", command);
+
+      if ($("messageInput")) {
+        $("messageInput").value = "";
+        resizeInput();
+      }
     }
 
     try { recognition.stop(); } catch {}
@@ -820,15 +851,18 @@ function setupRecognition() {
     }
 
     if (event.error === "audio-capture") {
+      state.nextListenDelay = 4000;
+
       if (state.callActive) setCallSubtitle("No microphone detected");
       toast("Check that your microphone is connected.");
       return;
     }
 
     if (event.error === "network") {
+      state.nextListenDelay = 2500;
+
       if (state.callActive) {
         setCallSubtitle("Voice service unavailable. Retrying...");
-        resumeCallListening(2500);
       }
       return;
     }
@@ -849,6 +883,9 @@ function setupRecognition() {
     $("micBtn")?.classList.remove("recording");
     $("callScreen")?.classList.remove("listening");
 
+    const delay = state.nextListenDelay || 700;
+    state.nextListenDelay = 0;
+
     if (
       state.callActive &&
       state.callConnected &&
@@ -856,12 +893,10 @@ function setupRecognition() {
       !state.awaitingPcResponse &&
       !state.micPermissionDenied
     ) {
-      resumeCallListening(700);
+      resumeCallListening(delay);
     }
   };
 }
-
-/* General voice command parser */
 
 function normalizeCommand(command) {
   return String(command || "")
@@ -931,6 +966,14 @@ function isTypingEnd(command) {
     .test(normalizeCommand(command));
 }
 
+function dispatchVoice(mapped, display) {
+  state.awaitingPcResponse = true;
+  cancelListenRestart();
+  updateCallTranscript("You: " + display);
+  setCallSubtitle("Sending command to your PC...");
+  sendCommand(mapped, "voice", display);
+}
+
 function handleTypingCommand(command) {
   const parsed = parseTypingCommand(command);
 
@@ -938,8 +981,8 @@ function handleTypingCommand(command) {
 
   if (parsed.action === "type_end") {
     state.typingMode = false;
-    state.awaitingPcResponse = true;
-    sendCommand("TYPE_END", "voice");
+    state.typingText = "";
+    dispatchVoice("TYPE_END", command);
     return true;
   }
 
@@ -963,44 +1006,24 @@ function handleTypingCommand(command) {
   if (parsed.action === "type_target") {
     state.typingTarget = normalizeTargetName(parsed.target);
     state.typingMode = true;
-    state.awaitingPcResponse = true;
+    state.typingText = "";
 
-    sendCommand("TYPE_TARGET " + state.typingTarget, "voice");
+    dispatchVoice("TYPE_TARGET " + state.typingTarget, command);
     return true;
   }
 
   if (parsed.action === "type_text") {
-    if (!state.typingMode) {
-      state.typingMode = true;
-      state.typingText = "";
-    }
-
-    state.typingText +=
-      (state.typingText ? " " : "") + parsed.text;
-
-    state.awaitingPcResponse = true;
-    sendCommand("TYPE_TEXT " + parsed.text, "voice");
+    dispatchVoice("TYPE_TEXT " + parsed.text, command);
     return true;
   }
 
   if (parsed.action === "type_send") {
-    if (state.typingMode) {
-      toast("Say 'type end' before sending.");
-      return true;
-    }
-
-    state.awaitingPcResponse = true;
-    sendCommand("TYPE_SEND", "voice");
+    dispatchVoice("TYPE_SEND", command);
     return true;
   }
 
   return false;
 }
-
-/*
-  Send standardised commands to the Python agent.
-  The Python agent must implement each action.
-*/
 
 function parseGeneralCommand(command) {
   const original = String(command || "").trim();
@@ -1012,20 +1035,13 @@ function parseGeneralCommand(command) {
     return "OPEN_FILE_MANAGER";
   }
 
-  if (/^(open|show|go to)\s+(c drive|drive c|local disk c|c:)$/.test(lower)) {
-    return "OPEN_DRIVE C";
-  }
+  const driveMatch = lower.match(
+    /^(?:open|show|go to)\s+(?:([a-z]) drive|drive ([a-z])|local disk ([a-z])|([a-z]):)$/
+  );
 
-  if (/^(open|show|go to)\s+(d drive|drive d|local disk d|d:)$/.test(lower)) {
-    return "OPEN_DRIVE D";
-  }
-
-  if (/^(open|show|go to)\s+(e drive|drive e|local disk e|e:)$/.test(lower)) {
-    return "OPEN_DRIVE E";
-  }
-
-  if (/^(open|show|go to)\s+(f drive|drive f|local disk f|f:)$/.test(lower)) {
-    return "OPEN_DRIVE F";
+  if (driveMatch) {
+    const letter = driveMatch[1] || driveMatch[2] || driveMatch[3] || driveMatch[4];
+    return "OPEN_DRIVE " + letter.toUpperCase();
   }
 
   if (/^(open|show|go to)\s+(recycle bin|recyclebin)$/.test(lower)) {
@@ -1052,19 +1068,11 @@ function parseGeneralCommand(command) {
     return "SELECT_ALL_FILES";
   }
 
-  if (/^(select all images|select all pictures|select all photos)$/.test(lower)) {
-    return "SELECT_ALL_IMAGES";
-  }
-
-  if (/^(deselect all|unselect all|clear selection)$/.test(lower)) {
-    return "DESELECT_ALL";
-  }
-
   if (/^(delete selected|delete selected files|remove selected files)$/.test(lower)) {
     return "DELETE_SELECTED_FILES_REQUEST";
   }
 
-  if (/^(delete all files|delete everything|delete all images|delete all pictures)$/.test(lower)) {
+  if (/^(delete all files|delete everything)$/.test(lower)) {
     return "DELETE_ALL_FILES_REQUEST";
   }
 
@@ -1072,12 +1080,18 @@ function parseGeneralCommand(command) {
     return "EMPTY_RECYCLE_BIN_REQUEST";
   }
 
-  if (/^(confirm delete|confirm deletion|yes delete)$/.test(lower)) {
-    return "CONFIRM_DELETE";
+  const confirmMatch = lower.match(
+    /^confirm (delete|deletion|shutdown|restart|empty recycle bin)$/
+  );
+
+  if (confirmMatch) {
+    return "CONFIRM " + (
+      confirmMatch[1] === "deletion" ? "DELETE" : confirmMatch[1].toUpperCase()
+    );
   }
 
   if (/^(cancel action|cancel delete|cancel deletion|never mind)$/.test(lower)) {
-    return "CANCEL_ACTION";
+    return "CANCEL ACTION";
   }
 
   if (/^(open|launch|start)\s+chrome$/.test(lower)) {
@@ -1151,10 +1165,6 @@ function parseGeneralCommand(command) {
     return "SEND_MESSAGE";
   }
 
-  /*
-    Unknown commands remain natural-language instructions.
-    The Python agent can decide whether it supports them.
-  */
   return original;
 }
 
@@ -1168,81 +1178,52 @@ function handleVoiceCommand(command) {
 
   const normalized = normalizeCommand(command);
 
-  // In typing mode, only the stop-typing phrase is treated as a command.
   if (state.typingMode) {
     if (isTypingEnd(command)) {
       handleTypingCommand(command);
       return;
     }
 
-    state.typingText +=
-      (state.typingText ? " " : "") + String(command).trim();
-
-    state.awaitingPcResponse = true;
-    sendCommand("TYPE_TEXT " + String(command).trim(), "voice");
+    dispatchVoice("TYPE_TEXT " + String(command).trim(), command);
     return;
   }
 
-  if (parseTypingCommand(command)) {
-    if (handleTypingCommand(command)) return;
+  if (state.waitingForConfirmation && Date.now() > state.confirmUntil) {
+    clearConfirmation();
   }
 
   if (state.waitingForConfirmation) {
-    if (/^(confirm delete|confirm deletion|yes delete)$/i.test(normalized)) {
-      state.waitingForConfirmation = false;
-      state.awaitingPcResponse = true;
-      sendCommand("CONFIRM_DELETE", "voice");
+    const spoken = normalized === "confirm deletion"
+      ? "confirm delete"
+      : normalized;
+
+    if (spoken === state.confirmPhrase) {
+      clearConfirmation();
+      dispatchVoice(spoken.toUpperCase(), command);
       return;
     }
 
-    if (/^(cancel action|cancel delete|cancel deletion|no|nope|never mind)$/i.test(normalized)) {
-      state.waitingForConfirmation = false;
-      state.pendingDangerousAction = null;
-      state.awaitingPcResponse = true;
-      sendCommand("CANCEL_ACTION", "voice");
+    if (/^(cancel action|cancel|cancel delete|cancel deletion|no|nope|never mind)$/.test(normalized)) {
+      clearConfirmation();
+      dispatchVoice("CANCEL ACTION", command);
       return;
     }
 
-    const reminder = "Please say confirm delete to continue, or cancel action.";
+    const reminder =
+      "Please say " + state.confirmPhrase + " to continue, or cancel action.";
+
     updateCallTranscript("MH2: " + reminder);
     setCallSubtitle("Waiting for confirmation");
     speak(reminder);
     return;
   }
 
-  const mapped = parseGeneralCommand(command);
+  if (parseTypingCommand(command) && handleTypingCommand(command)) return;
 
-  if (mapped && (
-    mapped === "DELETE_SELECTED_FILES_REQUEST" ||
-    mapped === "DELETE_ALL_FILES_REQUEST" ||
-    mapped === "EMPTY_RECYCLE_BIN_REQUEST"
-  )) {
-    state.waitingForConfirmation = true;
-    state.pendingDangerousAction = mapped;
-
-    const warning =
-      "This action may delete files. Please review the selected files on your PC. " +
-      "Say confirm delete to continue, or cancel action to stop.";
-
-    updateCallTranscript("MH2: " + warning);
-    setCallSubtitle("Waiting for deletion confirmation");
-    addMessage("assistant", warning);
-    speak(warning);
-
-    // The Python agent must also enforce its own deletion confirmation.
-    state.awaitingPcResponse = true;
-    sendCommand(mapped, "voice");
-    return;
-  }
-
-  state.awaitingPcResponse = true;
-  cancelListenRestart();
-  updateCallTranscript("You: " + command);
-  setCallSubtitle("Sending command to your PC...");
-  sendCommand(mapped || command, "voice");
+  dispatchVoice(parseGeneralCommand(command) || command, command);
 }
 
-async function sendCommand(textOverride, source = "text") {
+async function sendCommand(textOverride, source = "text", displayText = "") {
   const text = String(
     typeof textOverride === "string"
       ? textOverride
@@ -1262,6 +1243,9 @@ async function sendCommand(textOverride, source = "text") {
 
     if (source === "voice") {
       state.awaitingPcResponse = false;
+
+      if (/^TYPE_TARGET\b/i.test(text)) state.typingMode = false;
+
       resumeCallListening(1000);
     }
 
@@ -1292,14 +1276,15 @@ async function sendCommand(textOverride, source = "text") {
 
   state.lastCommand = text;
 
-  const message = addMessage("user", text, {
+  const message = addMessage("user", displayText || text, {
     status: "queued",
-    source
+    source,
+    command: text
   });
 
   if (state.callActive && state.callConnected) {
     state.awaitingPcResponse = true;
-    updateCallTranscript("You: " + text);
+    updateCallTranscript("You: " + (displayText || text));
     setCallSubtitle("Sending command to your PC...");
   }
 
@@ -1342,7 +1327,7 @@ async function sendCommand(textOverride, source = "text") {
       );
     }
 
-    startPolling(message.id, result.name);
+    startPolling(message.id, result.name, text);
   } catch (error) {
     updateMessage(message.id, { status: "error" });
     updateConnection("Database request failed", "error");
@@ -1350,8 +1335,11 @@ async function sendCommand(textOverride, source = "text") {
     const failure = "I couldn't send that command. " + error.message;
     addMessage("assistant", failure);
 
+    state.awaitingPcResponse = false;
+
+    if (/^TYPE_TARGET\b/i.test(text)) state.typingMode = false;
+
     if (state.callActive && state.callConnected) {
-      state.awaitingPcResponse = false;
       updateCallTranscript("MH2: " + failure);
       setCallSubtitle("Command could not be sent");
       await speak(failure);
@@ -1370,12 +1358,13 @@ async function sendCommand(textOverride, source = "text") {
   }
 }
 
-function startPolling(messageId, commandId) {
+function startPolling(messageId, commandId, commandText = "") {
   stopPolling(messageId);
 
   let attempts = 0;
-  const maxAttempts = 300;
+  const maxAttempts = Math.ceil(COMMAND_TIMEOUT_MS / POLL_INTERVAL_MS);
   let busy = false;
+  let lastStatus = "";
 
   const timer = setInterval(async () => {
     if (busy) return;
@@ -1386,14 +1375,35 @@ function startPolling(messageId, commandId) {
       if (attempts > maxAttempts) {
         stopPolling(messageId);
 
-        const text =
-          "I haven't received a response yet. Please check that your Python agent is running.";
+        let expired = false;
 
-        updateMessage(messageId, { status: "sent" });
+        if (lastStatus === "pending") {
+          try {
+            await databaseRequest("commands/" + commandId, {
+              method: "PATCH",
+              body: JSON.stringify({
+                status: "expired",
+                response: "The command timed out before the PC agent picked it up."
+              })
+            });
+            expired = true;
+          } catch (error) {
+            console.warn("Could not expire command:", error);
+          }
+        }
+
+        const text = expired
+          ? "The PC agent did not pick up the command in time, so it was cancelled. Please check that your Python agent is running."
+          : "I haven't received a response yet. Please check that your Python agent is running.";
+
+        updateMessage(messageId, { status: expired ? "error" : "sent" });
         addMessage("assistant", text);
 
+        state.awaitingPcResponse = false;
+
+        if (/^TYPE_TARGET\b/i.test(commandText)) state.typingMode = false;
+
         if (state.callActive && state.callConnected) {
-          state.awaitingPcResponse = false;
           updateCallTranscript("MH2: " + text);
           setCallSubtitle("No response from PC agent");
           await speak(text);
@@ -1408,6 +1418,7 @@ function startPolling(messageId, commandId) {
       if (!data) return;
 
       const status = String(data.status || "").toLowerCase();
+      lastStatus = status;
 
       if (status === "processing") {
         updateMessage(messageId, { status: "processing" });
@@ -1427,13 +1438,15 @@ function startPolling(messageId, commandId) {
         "done",
         "success",
         "failed",
-        "error"
+        "error",
+        "expired",
+        "cancelled"
       ].includes(status);
 
       if (responseText !== null || finished) {
         stopPolling(messageId);
 
-        const failed = ["failed", "error"].includes(status);
+        const failed = ["failed", "error", "expired", "cancelled"].includes(status);
 
         const answer = responseText ||
           (failed
@@ -1451,39 +1464,34 @@ function startPolling(messageId, commandId) {
           failed ? "error" : "connected"
         );
 
+        if (failed && /^TYPE_TARGET\b/i.test(commandText)) {
+          state.typingMode = false;
+        }
+
         if (state.callActive && state.callConnected) {
-          let spokenReply = answer;
+          if (!failed && data.requiresConfirmation === true) {
+            state.waitingForConfirmation = true;
+            state.pendingDangerousAction = commandText;
+            state.confirmPhrase = normalizeCommand(
+              data.confirmPhrase || "confirm delete"
+            );
+            state.confirmUntil = Date.now() +
+              (Number(data.confirmationTimeout) || DEFAULT_CONFIRMATION_SECONDS) * 1000;
+
+            setCallSubtitle("Waiting for your confirmation");
+          } else {
+            clearConfirmation();
+            setCallSubtitle(failed ? "Command failed" : "PC response received");
+          }
 
           updateCallTranscript("MH2: " + answer);
-          setCallSubtitle(failed ? "Command failed" : "PC response received");
-
-          if (
-            data.requiresConfirmation === true ||
-            data.awaitingConfirmation === true
-          ) {
-            state.waitingForConfirmation = true;
-
-            const question =
-              "Should I continue? Please say confirm delete or cancel action.";
-
-            addMessage("assistant", question);
-            spokenReply += ". " + question;
-
-            updateCallTranscript("MH2: " + answer + "\n\n" + question);
-            setCallSubtitle("Waiting for your confirmation");
-          }
 
           state.awaitingPcResponse = true;
-          await speak(spokenReply);
+          await speak(answer);
+          state.awaitingPcResponse = false;
 
-          if (state.callActive && state.callConnected && !state.muted) {
-            state.awaitingPcResponse = false;
-            resumeCallListening(800);
-          }
-        } else if (
-          state.waitingForConfirmation &&
-          ["failed", "error"].includes(status)
-        ) {
+          resumeCallListening(800);
+        } else {
           state.awaitingPcResponse = false;
         }
       }
@@ -1496,7 +1504,7 @@ function startPolling(messageId, commandId) {
     } finally {
       busy = false;
     }
-  }, 1500);
+  }, POLL_INTERVAL_MS);
 
   state.pollers.set(messageId, timer);
 }
@@ -1667,8 +1675,6 @@ function resizeInput() {
   input.style.height = Math.min(input.scrollHeight, 130) + "px";
 }
 
-/* Settings and UI event handlers */
-
 $("settingsBtn")?.addEventListener("click", openSettings);
 $("connectionSettings")?.addEventListener("click", openSettings);
 $("closeSettings")?.addEventListener("click", closeSettings);
@@ -1690,7 +1696,7 @@ $("settingsForm")?.addEventListener("submit", event => {
   const url = $("databaseUrl").value.trim().replace(/\/+$/, "");
   const token = $("authToken").value.trim();
 
-  if (!/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(url)) {
+  if (!DATABASE_URL_PATTERN.test(url)) {
     toast("Enter a valid HTTPS Firebase Database URL.");
     return;
   }
@@ -1715,7 +1721,7 @@ $("testConnection")?.addEventListener("click", async () => {
   const url = $("databaseUrl").value.trim().replace(/\/+$/, "");
   const token = $("authToken").value.trim();
 
-  if (!/^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?$/.test(url)) {
+  if (!DATABASE_URL_PATTERN.test(url)) {
     toast("Enter a valid HTTPS Firebase Database URL.");
     return;
   }
@@ -1728,7 +1734,7 @@ $("testConnection")?.addEventListener("click", async () => {
   updateConnection("Testing Firebase...");
 
   try {
-    await databaseRequest("commands", { method: "GET" });
+    await databaseRequest("commands", { method: "GET" }, { shallow: "true" });
 
     localStorage.setItem(STORAGE.url, url);
     localStorage.setItem(STORAGE.token, token);
@@ -1798,8 +1804,6 @@ $("micBtn")?.addEventListener("click", () => {
   }
 });
 
-
-
 $("callMuteBtn")?.addEventListener("click", () => {
   if (!state.callActive || !state.callConnected) {
     toast("Connect the call first.");
@@ -1832,7 +1836,6 @@ $("callMuteBtn")?.addEventListener("click", () => {
     resumeCallListening(400);
   }
 });
-
 
 $("callSpeakerBtn")?.addEventListener("click", async () => {
   if (!state.callActive) return;
