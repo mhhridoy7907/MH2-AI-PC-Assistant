@@ -1,16 +1,5 @@
-# MH2 AI PC Assistant - Single-file WhatsApp Web build (Chrome CDP / Playwright)
-#
-# SETUP (one time):
-#   pip install playwright pygame pyaudio SpeechRecognition edge-tts imageio-ffmpeg
-#   (no "playwright install" needed - your real Chrome is used)
-#
-# Chrome must be started with remote debugging. Either let this app launch it
-# automatically, or create mh2_chrome.bat containing:
-#   "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="%LOCALAPPDATA%\mh2_chrome_profile" --use-fake-ui-for-media-stream https://web.whatsapp.com/
-#
-# In that Chrome: chrome://settings/content/microphone -> choose "CABLE Output (VB-Audio Virtual Cable)"
-# Log in to WhatsApp Web once (QR), then open the person's inbox and keep it open.
-# In the app chat box type:  call   -> then type the message -> then type  yes
+# MH2 AI PC Assistant - detect-only WhatsApp Web call build (Chrome CDP / Playwright)
+
 import os
 
 if os.name != "nt":
@@ -18,7 +7,6 @@ if os.name != "nt":
 
 import argparse
 import asyncio
-import shutil
 import array
 import importlib
 import json
@@ -52,7 +40,6 @@ PUNCT_TABLE = str.maketrans({c: " " for c in string.punctuation + "\u0964\u0965\
 YES_WORDS = {
     "yes", "yeah", "yep", "yup", "ok", "okay", "sure", "correct", "right",
     "confirm", "confirmed", "haan", "han", "ha", "yes please",
-    # Common speech-recognition mishearings of the spoken word YES.
     "yess", "yea", "years", "year", "yas", "येस", "यस", "ইয়েস",
     "\u09b9\u09cd\u09af\u09be\u0981", "\u09b9\u09cd\u09af\u09be", "\u09b9\u09be\u0981",
     "\u09b9\u09be", "\u099c\u09bf", "\u09a0\u09bf\u0995",
@@ -199,7 +186,6 @@ class CallConfig:
     message_languages: tuple = ("en-US",)
     confirm_languages: tuple = ("en-US",)
     real_mic_index: object = None
-    # Force the physical microphone shown in --list-devices; never use Windows default/VB-CABLE.
     real_mic_name: str = "Microphone (High Definition Audio Device)"
     virtual_output_name: str = "CABLE Input"
     remote_monitor_name: str = ""
@@ -212,7 +198,6 @@ class CallConfig:
     echo_guard_seconds: float = 0.8
     dedupe_seconds: float = 6.0
     max_message_chars: int = 900
-    # auto: Bengali-script text uses Edge neural Bengali TTS; other text uses Windows speech.
     tts_backend: str = "auto"
     tts_voice: str = ""
     edge_tts_voice: str = "bn-BD-PradeepNeural"
@@ -282,7 +267,6 @@ def normalize(text):
 
 
 def classify_answer(candidates):
-    """Return yes/no only when the transcript contains an unambiguous answer."""
     for candidate in candidates:
         cleaned = normalize(candidate)
         tokens = set(cleaned.split())
@@ -290,8 +274,6 @@ def classify_answer(candidates):
         yes = bool(tokens & YES_WORDS)
         no = bool(tokens & NO_WORDS) or any(p in padded for p in NO_PHRASES)
 
-        # ASR sometimes returns the prompt itself ("yes or no"). Never treat
-        # a transcript containing both choices as consent.
         if yes and no:
             continue
         if yes:
@@ -791,7 +773,6 @@ class TTSAdapter:
             raise TTSError(f"Windows speech synthesis failed: {detail}")
 
     def render_edge_tts(self, text, path):
-        """Render Bengali text with Edge neural TTS, then convert MP3 to WAV for the audio router."""
         edge_tts = import_optional("edge_tts")
         ffmpeg_module = import_optional("imageio_ffmpeg")
         if edge_tts is None or ffmpeg_module is None:
@@ -808,7 +789,6 @@ class TTSAdapter:
             await communicate.save(mp3_path)
 
         try:
-            # Run the async job in its own thread so it never clashes with an existing event loop.
             holder = {}
 
             def worker():
@@ -1074,7 +1054,7 @@ class RemoteMonitor:
 
 
 class WhatsAppDesktop:
-    """Controls WhatsApp Web in a Chrome started with --remote-debugging-port (CDP)."""
+    """Attaches to an already-running Chrome (CDP). Never launches Chrome, never opens tabs."""
 
     def __init__(self, config, cancel_event):
         self.config = config
@@ -1106,28 +1086,10 @@ class WhatsAppDesktop:
         self._browser = None
         self.page = None
 
-    def launch_chrome(self):
-        from urllib.parse import urlparse
-        port = urlparse(self.config.cdp_url).port or 9222
-        exe = next((p for p in (
-            os.path.join(os.environ.get("PROGRAMFILES", ""), "Google", "Chrome", "Application", "chrome.exe"),
-            os.path.join(os.environ.get("PROGRAMFILES(X86)", ""), "Google", "Chrome", "Application", "chrome.exe"),
-            os.path.join(os.environ.get("LOCALAPPDATA", ""), "Google", "Chrome", "Application", "chrome.exe"),
-            shutil.which("chrome.exe")) if p and os.path.isfile(p)), None)
-        if exe is None:
-            raise CallError("Google Chrome could not be located.")
-        profile = os.path.join(os.environ.get("LOCALAPPDATA", tempfile.gettempdir()), "mh2_chrome_profile")
-        subprocess.Popen([
-            exe, f"--remote-debugging-port={port}", f"--user-data-dir={profile}",
-            "--use-fake-ui-for-media-stream", "--no-first-run", "https://web.whatsapp.com/",
-        ])
-
     def connect(self):
         if self._browser is not None:
             return
         sync_playwright = import_optional("playwright.sync_api").sync_playwright
-        if sync_playwright is None:
-            raise CallError("Playwright is required. Run: pip install playwright")
         self._pw = sync_playwright().start()
         self.check()
         try:
@@ -1135,10 +1097,9 @@ class WhatsAppDesktop:
         except Exception as exc:
             self.close()
             raise CallError(
-                "Could not attach to an existing Chrome session at "
-                f"{self.config.cdp_url}. MH2 will not open Chrome or create a tab. "
-                "The already-open Chrome must have remote debugging enabled, "
-                "then WhatsApp Web and the target inbox must already be open."
+                f"NOT FOUND: COULD NOT attach to your open Chrome at {self.config.cdp_url}. "
+                "That Chrome was not started with --remote-debugging-port. "
+                "MH2 does not open Chrome by itself."
             ) from exc
 
     def pages(self):
@@ -1150,17 +1111,6 @@ class WhatsAppDesktop:
     def wa_pages(self):
         return [p for p in self.pages() if "web.whatsapp.com" in (p.url or "")]
 
-    def chat_page(self):
-        pages = self.wa_pages()
-        for selector in ("#main header", "#side"):
-            for p in pages:
-                try:
-                    if p.locator(selector).count():
-                        return p
-                except Exception:
-                    continue
-        return pages[0] if pages else None
-
     def logged_out(self, page):
         try:
             return (page.locator("#side").count() == 0 and page.get_by_text(
@@ -1168,48 +1118,58 @@ class WhatsAppDesktop:
         except Exception:
             return False
 
-    def use_current_chat(self):
-        self.check()
-        self.connect()
-        pages = self.wa_pages()
-        if not pages:
-            raise ContactError(
-                "No existing WhatsApp Web tab was found in the current Chrome session. "
-                "Open web.whatsapp.com yourself; MH2 will not open a new tab."
-            )
-        page = None
-        for candidate in pages:
+    def find_open_chat(self):
+        """Check every open Chrome tab one by one. Returns (page, contact_name) or raises."""
+        tabs = self.pages()
+        if not tabs:
+            raise ContactError("NOT FOUND: No open Chrome tabs were found.")
+        wa = []
+        for tab in tabs:
             self.check()
             try:
-                if self.logged_out(candidate):
-                    continue
-                if candidate.locator("#main header").count() > 0:
-                    page = candidate
-                    break
+                if "web.whatsapp.com" in (tab.url or ""):
+                    wa.append(tab)
             except Exception:
                 continue
-        if page is None:
-            if all(self.logged_out(candidate) for candidate in pages):
-                raise ContactError(
-                    "WhatsApp Web is not logged in. Log in using the existing Chrome tab, "
-                    "then open the target contact's inbox."
-                )
+        if not wa:
             raise ContactError(
-                "WhatsApp Web is open, but no contact inbox is open. "
-                "Open the intended contact's conversation first; MH2 will not search, "
-                "navigate, or create tabs."
+                "NOT FOUND: WhatsApp Web is not open in any Chrome tab. Nothing was opened."
             )
+        logged_out = 0
+        for tab in wa:
+            self.check()
+            try:
+                if self.logged_out(tab):
+                    logged_out += 1
+                    continue
+                if tab.locator("#main header").count() > 0:
+                    try:
+                        text = tab.locator("#main header").first.inner_text(timeout=4000)
+                        name = text.strip().split("\n")[0].strip()
+                    except Exception:
+                        name = ""
+                    return tab, (name or "the open chat")
+            except Exception:
+                continue
+        if logged_out == len(wa):
+            raise ContactError(
+                "NOT FOUND: WhatsApp Web is open but not logged in. Nothing was done."
+            )
+        raise ContactError(
+            "NOT FOUND: WhatsApp Web is open but no contact inbox is open. Nothing was done."
+        )
+
+    def use_current_chat(self, focus=True):
+        self.check()
+        self.connect()
+        page, name = self.find_open_chat()
         self.page = page
-        try:
-            page.bring_to_front()
-        except Exception:
-            pass
-        try:
-            text = page.locator("#main header").first.inner_text(timeout=4000)
-            name = text.strip().split("\n")[0].strip()
-        except Exception:
-            name = ""
-        return name or "the open chat"
+        if focus:
+            try:
+                page.bring_to_front()
+            except Exception:
+                pass
+        return name
 
     def header_labels(self):
         try:
@@ -1331,7 +1291,6 @@ class WhatsAppDesktop:
                 continue
         return False
 
-    # Only the already-open chat is supported in this build.
     def search_contacts(self, query):
         raise ContactError("Only the currently open chat is supported.")
 
@@ -1503,11 +1462,6 @@ class CallSession:
         return answers
 
     def require_yes(self, prompt):
-        """Require a clearly recognized YES before any call can be placed.
-
-        Silence or unclear speech never counts as consent. Retry with an explicit
-        prompt, then cancel safely when the retry limit is reached.
-        """
         for attempt in range(self.config.max_retries):
             self.speak_local(prompt if attempt == 0 else self.config.prompt("yes_no"))
             answers = self.listen(
@@ -2135,7 +2089,6 @@ def console_notifier(kind, text=""):
 
 
 def cli_main(argv=None):
-    """Optional command-line tools (not used by the Pygame UI)."""
     parser = argparse.ArgumentParser(description="MH2 WhatsApp call module")
     parser.add_argument("--config")
     parser.add_argument("--list-devices", action="store_true")
@@ -2275,7 +2228,6 @@ def scale_color(color, factor):
 
 
 def get_clipboard_text():
-    """Read Windows Unicode clipboard text without stealing app focus."""
     if sys.platform == "win32":
         try:
             import ctypes
@@ -2361,7 +2313,7 @@ class NullBackend(AssistantBackend):
 
 
 class WhatsAppTypedBackend(AssistantBackend):
-    """Typed chat bridge to the WhatsApp call/TTS module."""
+    """Typed chat bridge. 'call' first scans the open Chrome tabs (read-only)."""
     name = "WHATSAPP TYPED CALL"
     connected = True
 
@@ -2372,6 +2324,7 @@ class WhatsAppTypedBackend(AssistantBackend):
         self._threading = threading
         self._callmod = callmod
         self._module = None
+        self._scanning = False
         self._pending_call = False
         self._pending_message = None
 
@@ -2391,25 +2344,53 @@ class WhatsAppTypedBackend(AssistantBackend):
                 break
         return events
 
+    def say(self, text):
+        self._queue.put({"type": "status", "text": text})
+
+    def scan_chrome(self):
+        cancel = self._threading.Event()
+        wa = self._callmod.WhatsAppDesktop(self._callmod.CallConfig(), cancel)
+        try:
+            wa.load()
+            name = wa.use_current_chat(focus=False)
+            self._pending_call = True
+            self._pending_message = None
+            self.say(f"Inbox open: {name}. Type the message the AI should speak (or 'cancel').")
+        except self._callmod.CallError as exc:
+            self.say(str(exc))
+        except Exception as exc:
+            self.say(f"SCAN ERROR: {exc}")
+        finally:
+            try:
+                wa.close()
+            except Exception:
+                pass
+            self._scanning = False
+
     def on_chat_message(self, message):
         text = " ".join(str(message).split()).strip()
         lower = text.lower().strip(" .!?")
-        if not self._pending_call and lower.startswith("call"):
+
+        if self._scanning:
+            self.say("Still checking Chrome tabs...")
+            return "queued"
+
+        if not self._pending_call and (lower == "call" or lower.startswith("call ")):
             if self._module is not None and self._module.is_active:
-                self._queue.put({"type": "status", "text": "A WhatsApp call is already running."})
+                self.say("A WhatsApp call is already running.")
                 return "queued"
-            self._pending_call = True
-            self._pending_message = None
-            self._queue.put({"type": "status", "text": "Type the message you want the AI to speak on the call."})
+            self._scanning = True
+            self.say("Checking open Chrome tabs for WhatsApp Web...")
+            self._threading.Thread(target=self.scan_chrome, name="mh2-chrome-scan", daemon=True).start()
             return "queued"
 
         if self._pending_call and self._pending_message is None:
             if lower in {"cancel", "stop", "no"}:
                 self._pending_call = False
-                self._queue.put({"type": "status", "text": "Call cancelled."})
+                self.say("Call cancelled.")
                 return "queued"
             self._pending_message = text
-            self._queue.put({"type": "status", "text": "Message preview: " + text[:180] + " | Type YES to place the call, or NO to cancel."})
+            self.say("Message preview: " + text[:180] + " | Type YES to place the call, or NO to cancel.")
             return "queued"
 
         if self._pending_call and self._pending_message is not None:
@@ -2425,8 +2406,6 @@ class WhatsAppTypedBackend(AssistantBackend):
                     try:
                         self._module = self._callmod.WhatsAppCallModule(
                             notifier=notify,
-                            # Do not let cleanup's final IDLE transition overwrite the
-                            # useful terminal status (ERROR / CALL_ENDED / CANCELLED).
                             on_state=lambda old, new: (
                                 self._queue.put({"type": "status", "text": f"Call state: {new}"})
                                 if new != "IDLE" else None
@@ -2438,20 +2417,18 @@ class WhatsAppTypedBackend(AssistantBackend):
                     except Exception as exc:
                         self._queue.put({"type": "status", "text": f"CALL ERROR: {exc}"})
 
-                # Queue the startup notice BEFORE launching the worker so a fast
-                # worker error cannot be overwritten by this late startup status.
-                self._queue.put({"type": "status", "text": "Starting WhatsApp call. Connecting to Chrome and the open chat..."})
+                self.say("Starting WhatsApp call on the already-open chat...")
                 self._threading.Thread(target=run_call, name="mh2-typed-whatsapp-call", daemon=True).start()
                 return "queued"
             if lower in {"no", "cancel", "stop"}:
                 self._pending_call = False
                 self._pending_message = None
-                self._queue.put({"type": "status", "text": "Call cancelled."})
+                self.say("Call cancelled.")
                 return "queued"
-            self._queue.put({"type": "status", "text": "Type YES to confirm or NO to cancel."})
+            self.say("Type YES to confirm or NO to cancel.")
             return "queued"
 
-        self._queue.put({"type": "status", "text": "To start: type 'call'."})
+        self.say("To start: type 'call'.")
         return "queued"
 
 
@@ -2873,7 +2850,6 @@ class App:
         self.level_history = deque(maxlen=70)
         self.logs = deque(maxlen=40)
 
-        # Compact bottom chat bar
         self.chat_text = ""
         self.chat_focused = False
         self.chat_messages = deque(maxlen=3)
@@ -3321,7 +3297,7 @@ class App:
         self.glow.dot(s, hd.left + 24, hd.centery, color, 4)
         self.text.draw(s, "MH2 // NEURAL INTERFACE", 16, WHITE,
                        (hd.left + 42, hd.top + 10), bold=True)
-        self.text.draw(s, "PERSONAL AI SYSTEM  /  BUILD 2.7", 11, MUTED,
+        self.text.draw(s, "PERSONAL AI SYSTEM  /  BUILD 2.8", 11, MUTED,
                        (hd.left + 43, hd.top + 32))
         self.text.draw(s, time.strftime("%H:%M:%S"), 16, WHITE,
                        (hd.right - 18, hd.top + 10), "topright", True)
@@ -3423,8 +3399,7 @@ class App:
         for event in events:
             if isinstance(event, dict) and event.get("type") == "status":
                 message = str(event.get("text", ""))
-                # Keep failures visible long enough for the user to read them.
-                persistent = any(token in message.upper() for token in ("ERROR", "FAILED", "NOT FOUND", "COULD NOT", "REQUIRES LOGIN", "LOGIN NEEDED"))
+                persistent = any(token in message.upper() for token in ("ERROR", "FAILED", "NOT FOUND", "COULD NOT", "REQUIRES LOGIN", "LOGIN NEEDED", "INBOX OPEN"))
                 self.set_status(message[:150], 15.0 if persistent else 6.0)
                 self.log("AI: " + message[:180])
                 continue
@@ -3506,7 +3481,6 @@ class App:
         value = self.chat_text
         placeholder = "Message MH2..." if not value else value
 
-        # Keep the newest characters visible as the user types.
         while value and self.text.width(placeholder, 13) > available:
             value = value[1:]
             placeholder = value
@@ -3535,7 +3509,6 @@ class App:
                 self.chat_text += event.text
             elif event.type == pygame.KEYDOWN:
                 if self.chat_focused:
-                    # Support Ctrl+V / Shift+Insert paste in the chat input.
                     paste_shortcut = (
                         (event.key == pygame.K_v and (event.mod & pygame.KMOD_CTRL))
                         or (event.key == pygame.K_INSERT and (event.mod & pygame.KMOD_SHIFT))
