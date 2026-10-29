@@ -29,10 +29,10 @@ The project uses Firebase to connect the phone and PC, with a simple web app for
 ---
 
 ## 🖥️ Application Interface
-
+*The interface of MH2 AI PC Assistant*
 ![MH2 AI PC Assistant Interface](assets/mh2%20ai%20pc%20assistant.jpg)
 
-*The interface of MH2 AI PC Assistant*
+
 
 
 ## System Architecture
