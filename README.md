@@ -28,7 +28,7 @@ The project uses Firebase to connect the phone and PC, with a simple web app for
 
 ---
 ## System Architecture
-#### for remote vertion
+#### for remote version
 
 ![MH2 PC Assistant](assets/mh2pcassistant.jpg)
 
