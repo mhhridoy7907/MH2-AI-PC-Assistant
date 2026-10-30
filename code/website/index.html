@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#030810">
+    <meta name="description"
+        content="MH2 AI PC Assistant by Murad Hasan Hridoy — a Windows PC automation project with voice and text commands, remote control, and supported messaging automation.">
+    <meta property="og:title" content="MH2 AI PC Assistant | MH2 HRIDOY">
+    <meta property="og:description" content="Your Personal AI-Powered PC Control System">
+    <meta property="og:type" content="website">
+    <title>MH2 AI </title>
+
+    <link rel="icon" type="image/png" href="https://i.pinimg.com/736x/f0/28/63/f02863a786054962fe65d13e562faf23.jpg">
+    <style>
+        /*🚧 Development Under Construction — More Features Coming Soon!*/
+    </style>
+</head>
+
+<body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="grid-fx" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="scanlines" aria-hidden="true"></div>
+    <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+    <div class="progress" id="progress" aria-hidden="true"></div>
+
+    <div id="boot" aria-hidden="true"><b>MH2 Ai </b>
+        <div class="bar"><i id="bootFill"></i></div><small id="bootPct">0%</small>
+    </div>
+
+    <header class="nav-wrap" id="navWrap">
+        <nav class="nav container" aria-label="Main navigation">
+            <a class="brand" href="#home" aria-label="MH2 HRIDOY home"><span class="brand-mark">MH2</span><span>MH2
+                    <span class="accent">HRIDOY</span></span></a>
+            <div class="nav-links" id="navLinks">
+                <a href="#home">Home</a><a href="#assistant">MH2 AI</a><a href="#about">About</a><a
+                    href="#features">Features</a><a href="#download">Download</a>
+                <a href="#contact">Contact</a><a href="https://github.com/mhhridoy7907" target="_blank"
+                    rel="noopener">GitHub ↗</a>
+            </div>
+            <div class="nav-cta"><a class="btn primary small" href="#download">Get MH2 AI</a><button class="menu-btn"
+                    id="menuBtn" aria-expanded="false" aria-controls="navLinks"
+                    aria-label="Toggle navigation">☰</button></div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero" id="home">
+            <div class="container">
+                <span class="eyebrow"><span class="dot"></span> Personal AI &amp; PC automation</span>
+                <h1>MH2 AI<span class="accent">PC Assistant</span></h1>
+                <p class="sub">Your Personal AI-Powered PC Control System</p>
+                <p class="lead">Control supported Windows PC tasks with voice and text commands. MH2 AI is being
+                    developed to connect a phone interface with a PC-side assistant for practical automation and
+                    messaging workflows.</p>
+                <div class="hero-actions"><a class="btn primary" href="#hud">Explore MH2 AI ↘</a><a class="btn"
+                        href="#download">Get the Windows App</a><a class="btn ghost" href="#contact">Contact
+                        Developer</a></div>
+                <div class="trust-line"><span>✓ Windows-focused</span><span>✓ PC-side execution</span><span>✓ Built by
+                        MH2 HRIDOY</span></div>
+
+
+                <!-- ===== Pygame HUD recreation ===== -->
+                <div class="hud" id="hud" aria-label="Animated recreation of the MH2 AI Python Pygame interface">
+                    <h2 class="demo-heading">MH2 AI PC Assistant PC Interface Demo</h2>
+                    <div class="hud-header">
+                        <span class="pulse"></span>
+                        <div class="hud-title"><b>MH2 Ai pc Assistant</b><small>PERSONAL AI SYSTEM / BUILD 2.6</small>
+                        </div>
+                        <div class="hud-wave" id="hudWave" aria-hidden="true"></div>
+                        <div class="right"><b id="clock">00:00:00</b><small id="hdrState">SYSTEM STANDBY</small></div>
+                    </div>
+
+                    <div class="hud-grid">
+                        <aside class="panel" aria-label="System telemetry">
+                            <h4>SYSTEM TELEMETRY</h4>
+                            <div class="row"><span>FPS</span><b class="g" id="tFps">60</b></div>
+                            <div class="row"><span>FRAME</span><b id="tFrame">16.7 ms</b></div>
+                            <div class="row"><span>UPTIME</span><b id="tUp">00:00</b></div>
+                            <div class="row"><span>DISPLAY</span><b id="tDisp">0x0</b></div>
+                            <div class="row"><span>NODES</span><b class="g" id="tNodes">0</b></div>
+                            <canvas class="spark" id="sparkA"></canvas>
+                        </aside>
+
+                        <div class="core-col">
+                            <div class="stage" id="stage">
+                                <canvas id="core" aria-label="Animated AI core"></canvas>
+                                <div class="chip l"><small>CORE TEMP</small><strong id="temp">36.4°C</strong></div>
+                                <div class="chip r"><small>NEURAL LINK</small><strong id="link">STANDBY</strong></div>
+                            </div>
+                            <div class="brand-block">
+                                <div class="big">MH2</div>
+                                <div class="l1">ARTIFICIAL INTELLIGENCE</div>
+                                <div class="l2">YOUR PERSONAL DIGITAL ASSISTANT</div>
+                            </div>
+                            <div class="status-line"><i></i><span id="statusText">BOOTING INTERFACE</span></div>
+                            <canvas id="eq" aria-hidden="true"></canvas>
+                            <div class="actions">
+                                <button type="button" class="hbtn" id="bAi"><span id="bAiT">ACTIVATE
+                                        AI</span><kbd>SPACE</kbd></button>
+                                <button type="button" class="hbtn" id="bVoice"><span id="bVoiceT">VOICE
+                                        MODE</span><kbd>V</kbd></button>
+                                <button type="button" class="hbtn warn" id="bReboot"><span>REBOOT
+                                        SYSTEM</span><kbd>R</kbd></button>
+                            </div>
+                        </div>
+
+                        <aside class="panel" aria-label="Neural status and event log">
+                            <h4>NEURAL STATUS</h4>
+                            <div class="row"><span>CORE</span><b id="sCore">STANDBY</b></div>
+                            <div class="row"><span>VOICE</span><b id="sVoice">STANDBY</b></div>
+                            <div class="row"><span>BACKEND</span><b class="o">OFFLINE</b></div>
+                            <div class="row"><span>INPUT</span><b class="m">N/A</b></div>
+                            <div class="row"><span>OUTPUT</span><b class="m">N/A</b></div>
+                            <h4 style="margin-top:14px">EVENT LOG</h4>
+                            <div class="log" id="log"></div>
+                            <canvas class="spark" id="sparkB"></canvas>
+                        </aside>
+                    </div>
+                    <div class="hud-footer"><span>MH2 SYSTEMS</span><span>NEURAL INTERFACE</span><span id="fpsFoot">60
+                            FPS | 0x0</span></div>
+                    <p class="hud-note">Web demo of the Python/Pygame interface. Buttons and keys (SPACE, V, R) animate
+                        this preview only — they do not control your PC.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="assistant">
+            <div class="container">
+                <div class="section-head reveal"><span class="eyebrow">PC + mobile experience</span>
+                    <h2>One assistant. <span class="accent">Two interfaces.</span></h2>
+                    <p>A responsive web interface can provide a mobile-friendly control surface. Actual Windows
+                        operations must be handled by your installed PC agent through an authenticated, secure
+                        connection.</p>
+                </div>
+                <div class="grid two">
+                    <article class="card reveal">
+                        <div class="icon-box">▣</div>
+                        <h3>Windows PC Agent</h3>
+                        <p>Your existing Python code includes WhatsApp call automation, microphone/audio routing,
+                            text-to-speech, and call-state handling. This module is Windows-specific and expects an
+                            already-open Chrome session with remote debugging configured.</p>
+                        <div class="divider"></div><span class="tag">Python</span><span class="tag">Windows</span><span
+                            class="tag">WhatsApp call workflow</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="icon-box">▯</div>
+                        <h3>Mobile Web Interface</h3>
+                        <p>Use this responsive website on a phone to view product information and send contact or
+                            purchase requests. Remote PC commands are not connected in this starter build; add
+                            authentication and a command service before enabling them.</p>
+                        <div class="divider"></div><span class="tag">Responsive</span><span
+                            class="tag">Touch-friendly</span><span class="tag">Integration-ready</span>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="section alt" id="about">
+            <div class="container">
+                <div class="section-head reveal"><span class="eyebrow">About the project</span>
+                    <h2>Automation designed around <span class="accent">your workflow.</span></h2>
+                    <p>MH2 AI PC Assistant is a personal PC automation and remote-control project developed by Murad
+                        Hasan Hridoy.</p>
+                </div>
+                <div class="about-grid">
+                    <article class="card reveal">
+                        <h3>About MH2 AI</h3>
+                        <p>MH2 AI aims to make everyday computer operations easier through voice and text interaction,
+                            supported automation, and a future phone-to-PC workflow. The Windows-side Python module
+                            provided for this build specifically implements a WhatsApp call workflow and supporting
+                            audio, speech, and state-management components.</p>
+                        <ul class="check-list">
+                            <li>Existing Python call automation reference</li>
+                            <li>Website product and contact experience</li>
+                            <li>Designed for future authorized PC integration</li>
+                        </ul>
+                    </article>
+                    <article class="card reveal">
+                        <div class="profile-head"><img class="profile-photo"
+                                src="https://i.pinimg.com/736x/ce/58/c1/ce58c1d1278349c500426a7ef0f6908f.jpg"
+                                alt="MH Hridoy profile portrait" loading="lazy">
+                            <div><span class="eyebrow"><span class="dot"></span> BUILDER PROFILE</span>
+                                <h3>MH HRIDOY</h3>
+                                <p class="profile-role">Creator of MH2 AI PC Assistant</p>
+                            </div>
+                        </div>
+                        <p>I'm Murad Hasan Hridoy, a self-driven developer from Sylhet, Bangladesh, building practical
+                            software, responsive web experiences, automation tools, and AI-powered systems.</p>
+                        <p style="margin-top:12px">MH2 AI PC Assistant is my personal project for a futuristic desktop
+                            assistant experience, with Python/Pygame visuals and a roadmap for voice, text, and
+                            authorized PC workflows.</p>
+                        <div style="margin-top:8px"><span class="tag">Python</span><span class="tag">AI
+                                Automation</span><span class="tag">Web Development</span></div>
+                        <p style="margin-top:16px"><strong style="color:var(--text)">Education:</strong> BSc in Computer
+                            Science and Engineering, RTM Al-Kabir Technical University</p><a class="btn small ghost"
+                            style="margin-top:16px" href="https://github.com/mhhridoy7907" target="_blank"
+                            rel="noopener">Explore my GitHub ↗</a>
+                    </article>
+                </div>
+                <div class="card reveal" style="margin-top:18px">
+                    <h3>Skills &amp; technologies</h3>
+                    <div><span class="tag">JavaScript</span><span class="tag">TypeScript</span><span
+                            class="tag">HTML5</span><span class="tag">CSS3</span><span class="tag">React</span><span
+                            class="tag">Node.js</span><span class="tag">Express.js</span><span
+                            class="tag">Firebase</span><span class="tag">MongoDB</span><span
+                            class="tag">MySQL</span><span class="tag">Git</span><span class="tag">Python</span><span
+                            class="tag">Linux</span><span class="tag">GitHub</span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="features">
+            <div class="container">
+                <div class="section-head reveal"><span class="eyebrow">Capabilities</span>
+                    <h2>Built for practical <span class="accent">PC automation.</span></h2>
+                    <p>Availability labels distinguish what is evidenced by the supplied Python module from features
+                        that still need integration or verification.</p>
+                </div>
+                <div class="grid three">
+                    <article class="card reveal">
+                        <div class="icon-box">◉</div>
+                        <h3>WhatsApp Call Workflow</h3>
+                        <p>The supplied Python module supports a call workflow using an already-open WhatsApp Web
+                            session in Chrome.</p><span class="tag">In Python module</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="icon-box">♫</div>
+                        <h3>Voice &amp; Audio</h3>
+                        <p>Speech recognition, microphone input, text-to-speech, and audio routing components are
+                            present in the supplied code.</p><span class="tag">In Python module</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="icon-box">⌨</div>
+                        <h3>Text Command Interface</h3>
+                        <p>The website has forms and interface elements; a secure command endpoint must be connected
+                            before it can send PC commands.</p><span class="tag">Integration required</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="icon-box">▣</div>
+                        <h3>Remote PC Control</h3>
+                        <p>Phone-to-PC command delivery, pairing, and result reporting are not established by the
+                            supplied call module alone.</p><span class="tag">Planned</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="icon-box">⚙</div>
+                        <h3>App, Keyboard &amp; Mouse Automation</h3>
+                        <p>Do not assume general app, keyboard, or mouse automation from the supplied call module. Add
+                            and test each action in the PC agent.</p><span class="tag">Needs verification</span>
+                    </article>
+                    <article class="card reveal">
+                        <div class="icon-box">↻</div>
+                        <h3>Status &amp; Feedback</h3>
+                        <p>This site shows form submission status. Live PC connection status requires a backend and an
+                            authenticated PC agent heartbeat.</p><span class="tag">Website forms only</span>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="section alt" id="download">
+            <div class="container">
+                <div class="section-head reveal"><span class="eyebrow">Windows app</span>
+                    <h2>Get MH2 AI for <span class="accent">Windows.</span></h2>
+                    <p>Request access to the Windows application. Payment and delivery details will be provided by the
+                        developer; this website does not process payments or unlock downloads automatically.</p>
+                </div>
+                <div class="grid two">
+                    <article class="card product reveal">
+                        <div class="product-top">
+                            <div><span class="tag">Windows 10</span>
+                                <h3 style="margin-top:14px">MH2 AI PC Assistant</h3>
+                            </div>
+                            <div class="icon-box">▣</div>
+                        </div>
+                        <div class="price">$50 <small>USD</small></div>
+                        <p>Request access for a Windows 10 PC.</p>
+                        <ul>
+                            <li>Windows-focused assistant project</li>
+                            <li>Access request reviewed by developer</li>
+                            <li>Delivery details shared after verification</li>
+                        </ul><button class="btn primary purchase-btn" data-version="Windows 10">Purchase / Request
+                            Access</button>
+                    </article>
+                    <article class="card product featured reveal">
+                        <div class="product-top">
+                            <div><span class="tag">Windows 11</span>
+                                <h3 style="margin-top:14px">MH2 AI PC Assistant</h3>
+                            </div>
+                            <div class="icon-box">▣</div>
+                        </div>
+                        <div class="price">$50 <small>USD</small></div>
+                        <p>Request access for a Windows 11 PC.</p>
+                        <ul>
+                            <li>Windows-focused assistant project</li>
+                            <li>Access request reviewed by developer</li>
+                            <li>Delivery details shared after verification</li>
+                        </ul><button class="btn primary purchase-btn" data-version="Windows 11">Purchase / Request
+                            Access</button>
+                    </article>
+                </div>
+                <p class="form-help">Price is displayed as configured for this website. No payment gateway or
+                    downloadable installer is connected here.</p>
+            </div>
+        </section>
+
+        <section class="section alt" id="contact">
+            <div class="container">
+                <div class="section-head reveal"><span class="eyebrow">Contact &amp; purchase requests</span>
+                    <h2>Let's talk about <span class="accent">your request.</span></h2>
+                    <p>Use the form for general questions, purchase requests, technical support, freelance work, or
+                        collaboration.</p>
+                </div>
+                <div class="about-grid">
+                    <div class="card reveal">
+                        <h3>Contact the developer</h3>
+                        <p>Murad Hasan Hridoy · Sylhet, Bangladesh</p>
+                        <div class="divider"></div>
+                        <p style="margin-bottom:12px"><strong style="color:var(--text)">Email</strong><br><a
+                                class="accent" href="mailto:mhhridoy7907@gmail.com">mhhridoy7907@gmail.com</a></p>
+                        <p style="margin-bottom:12px"><strong style="color:var(--text)">WhatsApp</strong><br><a
+                                class="accent" href="https://wa.me/8801962388570" target="_blank" rel="noopener">+880
+                                1962-388570</a></p>
+                        <p style="margin-bottom:12px"><strong style="color:var(--text)">GitHub</strong><br><a
+                                class="accent" href="https://github.com/mhhridoy7907" target="_blank"
+                                rel="noopener">github.com/mhhridoy7907 ↗</a></p>
+                        <p style="margin-bottom:18px"><strong style="color:var(--text)">Facebook</strong><br><a
+                                class="accent" href="https://www.facebook.com/mh.hridoy.567130" target="_blank"
+                                rel="noopener">MH2 HRIDOY ↗</a></p>
+                    </div>
+                    <form class="card reveal" id="contactForm">
+                        <h3>Send a message</h3>
+                        <div class="form-grid">
+                            <div class="field"><label for="firstName">First name *</label><input id="firstName"
+                                    name="firstName" autocomplete="given-name" required maxlength="80"
+                                    placeholder="First name"></div>
+                            <div class="field"><label for="lastName">Last name *</label><input id="lastName"
+                                    name="lastName" autocomplete="family-name" required maxlength="80"
+                                    placeholder="Last name"></div>
+                            <div class="field"><label for="email">Email address *</label><input id="email" name="email"
+                                    type="email" autocomplete="email" required maxlength="180"
+                                    placeholder="you@example.com"></div>
+                            <div class="field"><label for="phone">Phone number</label><input id="phone" name="phone"
+                                    type="tel" autocomplete="tel" maxlength="40" placeholder="+880..."></div>
+                            <div class="field"><label for="country">Country</label><input id="country" name="country"
+                                    autocomplete="country-name" maxlength="80" placeholder="Country"></div>
+                            <div class="field"><label for="requestType">Request type *</label><select id="requestType"
+                                    name="requestType" required>
+                                    <option value="General Inquiry">General Inquiry</option>
+                                    <option value="MH2 AI Purchase">MH2 AI Purchase</option>
+                                    <option value="Technical Support">Technical Support</option>
+                                    <option value="Freelance Project">Freelance Project</option>
+                                    <option value="Business Collaboration">Business Collaboration</option>
+                                    <option value="Other">Other</option>
+                                </select></div>
+                            <div class="field full"><label for="subject">Subject *</label><input id="subject"
+                                    name="subject" required maxlength="160" placeholder="How can I help?"></div>
+                            <div class="field full"><label for="message">Message *</label><textarea id="message"
+                                    name="message" required maxlength="4000"
+                                    placeholder="Write your message here..."></textarea></div>
+                        </div>
+                        <input type="text" name="website" id="website" autocomplete="off" tabindex="-1"
+                            aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px">
+                        <p class="form-help">Fields marked * are required. Please don't include passwords or
+                            payment-card information.</p>
+                        <button class="btn primary" id="submitBtn" type="submit">Send request <span
+                                aria-hidden="true">→</span></button>
+                        <div class="form-status" id="formStatus" role="status" aria-live="polite"></div>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container footer-inner">
+            <div><strong>MH2 <span class="accent">HRIDOY</span></strong>
+                <div class="muted">© <span id="year"></span> Murad Hasan Hridoy. Built with care.</div>
+            </div>
+            <div class="footer-links"><a href="#home">Home</a><a href="#download">Download</a><a
+                    href="#contact">Contact</a><a href="https://github.com/mhhridoy7907" target="_blank"
+                    rel="noopener">GitHub ↗</a></div>
+        </div>
+    </footer>
+
+    <script>
+      /* Development Under Construction — More Features Coming Soon! *
+    </script>
+  
+</body>
+
+</html>
